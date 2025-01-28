@@ -55,9 +55,34 @@ AVAILABLE_MODELS=["gpt-4-turbo-preview","gpt-4","gpt-3.5-turbo","text-embedding-
 
 ### 🐳 Docker 部署
 
+你可以选择以下任一方式部署：
+
+#### 方式一：使用预构建镜像
+
 ```bash
+# 拉取最新版本镜像
+docker pull ghcr.io/[your-username]/[repo-name]:latest
+
+# 运行容器
+docker run -d \
+  -p 8000:8000 \
+  -e API_KEYS='[{"key":"your-api-key-1"},{"key":"your-api-key-2","base_url":"https://your-proxy.com/v1"}]' \
+  -e ALLOWED_TOKENS='["your-token-1","your-token-2"]' \
+  ghcr.io/[your-username]/[repo-name]:latest
+```
+
+#### 方式二：本地构建
+
+```bash
+# 构建镜像
 docker build -t openai-proxy .
-docker run -p 8000:8000 -d openai-proxy
+
+# 运行容器
+docker run -d \
+  -p 8000:8000 \
+  -e API_KEYS='[{"key":"your-api-key-1"},{"key":"your-api-key-2","base_url":"https://your-proxy.com/v1"}]' \
+  -e ALLOWED_TOKENS='["your-token-1","your-token-2"]' \
+  openai-proxy
 ```
 
 ## 🔌 API 接口
@@ -139,6 +164,8 @@ GET /health
 - API Key 失败重试次数默认为 10 次
 - 可以通过环境变量 AVAILABLE_MODELS 配置可用的模型列表
 - 每个 API Key 可以配置独立的代理地址，默认使用 OpenAI 官方地址
+- Docker 镜像支持 AMD64 和 ARM64 架构
+- 每次推送到主分支或创建新的标签时会自动构建并发布 Docker 镜像
 
 ## 🤝 贡献
 
