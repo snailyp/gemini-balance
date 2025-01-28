@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import List, Dict, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class APIKeyConfig(BaseModel):
@@ -18,6 +18,7 @@ class Settings(BaseSettings):
         "gpt-3.5-turbo",
         "text-embedding-3-small"
     ]
+    api_key_configs: List[APIKeyConfig] = Field(default_factory=list)  # 添加字段定义
 
     def __init__(self):
         super().__init__()
@@ -25,7 +26,6 @@ class Settings(BaseSettings):
             self.AUTH_TOKEN = self.ALLOWED_TOKENS[0] if self.ALLOWED_TOKENS else ""
         
         # 转换API密钥配置
-        self.api_key_configs: List[APIKeyConfig] = []
         for key_config in self.API_KEYS:
             if isinstance(key_config, str):
                 # 如果是字符串，使用默认base_url
