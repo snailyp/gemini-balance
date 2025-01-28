@@ -2,7 +2,7 @@
 
 ## 📝 项目简介
 
-这是一个基于 FastAPI 框架开发的 OpenAI API 代理服务,支持 Gemini 模型调用。主要提供多 API Key 轮询、认证鉴权、流式响应等功能。
+这是一个基于 FastAPI 框架开发的 OpenAI API 代理服务。主要提供多 API Key 轮询、认证鉴权、流式响应等功能。
 
 ## ✨ 主要特性
 
@@ -11,9 +11,6 @@
 - 📡 支持流式响应
 - 🌐 CORS 跨域支持
 - 📊 健康检查接口
-- 🤖 支持 Gemini 模型
-- 🔍 支持搜索功能
-- 🛠️ 支持代码执行
 
 ## 🛠️ 技术栈
 
@@ -42,18 +39,25 @@ pip install -r requirements.txt
 创建 `.env` 文件并配置以下参数:
 
 ```env
-API_KEYS=["your-api-key-1","your-api-key-2"]
+# API密钥列表，支持为每个密钥配置独立的代理地址
+API_KEYS=[
+    {"key": "your-api-key-1", "base_url": "https://api.openai.com/v1"},
+    {"key": "your-api-key-2", "base_url": "https://your-proxy-domain.com/v1"},
+    {"key": "your-api-key-3"}  # 不指定base_url时使用默认地址
+]
+
+# 允许的访问令牌列表
 ALLOWED_TOKENS=["your-access-token-1","your-access-token-2"]
-BASE_URL="https://generativelanguage.googleapis.com/v1beta"
-TOOLS_CODE_EXECUTION_ENABLED=true
-MODEL_SEARCH=["gemini-2.0-flash-exp"]
+
+# 可用模型列表（可选，默认包含gpt-4-turbo-preview等模型）
+AVAILABLE_MODELS=["gpt-4-turbo-preview","gpt-4","gpt-3.5-turbo","text-embedding-3-small"]
 ```
 
 ### 🐳 Docker 部署
 
 ```bash
-docker build -t gemini-balance .
-docker run -p 8000:8000 -d gemini-balance
+docker build -t openai-proxy .
+docker run -p 8000:8000 -d openai-proxy
 ```
 
 ## 🔌 API 接口
@@ -73,10 +77,9 @@ Authorization: Bearer your-token
 
 {
     "messages": [...],
-    "model": "gemini-1.5-flash-002",
+    "model": "gpt-4-turbo-preview",
     "temperature": 0.7,
-    "stream": false,
-    "tools": []
+    "stream": false
 }
 ```
 
@@ -88,7 +91,7 @@ Authorization: Bearer your-token
 
 {
     "input": "Your text here",
-    "model": "text-embedding-004"
+    "model": "text-embedding-3-small"
 }
 ```
 
@@ -134,12 +137,13 @@ GET /health
 - 建议在生产环境中使用环境变量配置敏感信息
 - 默认服务端口为 8000
 - API Key 失败重试次数默认为 10 次
-- 支持的模型列表请参考 Gemini API 文档
+- 可以通过环境变量 AVAILABLE_MODELS 配置可用的模型列表
+- 每个 API Key 可以配置独立的代理地址，默认使用 OpenAI 官方地址
 
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
 
-## 📄 许可证
+## �� 许可证
 
 MIT License

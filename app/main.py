@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.logger import get_main_logger
 
-from app.api import gemini_routes, openai_routes
+from app.api import openai_routes
 import uvicorn
 
 from app.middleware.request_logging_middleware import RequestLoggingMiddleware
@@ -28,9 +28,6 @@ app.add_middleware(
 
 # 包含所有路由
 app.include_router(openai_routes.router)
-app.include_router(gemini_routes.router)
-app.include_router(gemini_routes.router_v1beta)
-
 
 @app.get("/health")
 @app.get("/")
@@ -38,7 +35,5 @@ async def health_check():
     logger.info("Health check endpoint called")
     return {"status": "healthy"}
 
-
 if __name__ == "__main__":
-
     uvicorn.run(app, host="0.0.0.0", port=8001)

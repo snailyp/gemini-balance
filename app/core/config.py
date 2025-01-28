@@ -1,21 +1,38 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Dict, Optional
+from pydantic import BaseModel
+
+
+class APIKeyConfig(BaseModel):
+    key: str
+    base_url: Optional[str] = "https://api.openai.com/v1"
 
 
 class Settings(BaseSettings):
-    API_KEYS: List[str]
+    API_KEYS: List[Dict[str, str]]  # 支持包含代理地址的API密钥配置
     ALLOWED_TOKENS: List[str]
-    BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta"
-    MODEL_SEARCH: List[str] = ["gemini-2.0-flash-exp"]
-    TOOLS_CODE_EXECUTION_ENABLED: bool = False
-    SHOW_SEARCH_LINK: bool = True
-    SHOW_THINKING_PROCESS: bool = True
     AUTH_TOKEN: str = ""
+    AVAILABLE_MODELS: List[str] = [
+        "gpt-4-turbo-preview",
+        "gpt-4",
+        "gpt-3.5-turbo",
+        "text-embedding-3-small"
+    ]
 
     def __init__(self):
         super().__init__()
         if not self.AUTH_TOKEN:
             self.AUTH_TOKEN = self.ALLOWED_TOKENS[0] if self.ALLOWED_TOKENS else ""
+        
+        # 转换API密钥配置
+        self.api_key_configs: List[APIKeyConfig] = []
+        for key_config in self.API_KEYS:
+            if isinstance(key_config, str):
+                # 如果是字符串，使用默认base_url
+                self.api_key_configs.append(APIKeyConfig(key=key_config))
+            elif isinstance(key_config, dict):
+                # 如果是字典，包含key和base_url
+                self.api_key_configs.append(APIKeyConfig(**key_config))
 
     class Config:
         env_file = ".env"
