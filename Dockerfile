@@ -1,20 +1,27 @@
 FROM python:3.9-slim
 
+# 创建非root用户
+RUN useradd -m -u 1000 user
 WORKDIR /app
 
-# 复制所需文件到容器中
-COPY ./app /app/app
-COPY ./requirements.txt /app
+# 安装依赖
+COPY --chown=user requirements.txt requirements.txt
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
-RUN pip install --no-cache-dir -r requirements.txt
-ENV API_KEYS='["your_api_key_1"]'
-ENV ALLOWED_TOKENS='["your_token_1"]'
-ENV BASE_URL=https://generativelanguage.googleapis.com/v1beta
-ENV TOOLS_CODE_EXECUTION_ENABLED=true
-ENV MODEL_SEARCH='["gemini-2.0-flash-exp"]'
+# 复制应用代码
+COPY --chown=user ./app /app/app
 
-# Expose port
-EXPOSE 8000
+# 切换到非root用户
+USER user
 
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+# 设置环境变量
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH \
+    LOG_DIR=/home/user/logs \
+    PORT=7860
+
+# 暴露端口
+EXPOSE 7860
+
+# 启动命令
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]

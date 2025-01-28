@@ -1,5 +1,7 @@
 import logging
 import sys
+import os
+from logging.handlers import RotatingFileHandler
 from typing import Dict, Optional
 import platform
 
@@ -76,6 +78,25 @@ class Logger:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(FORMATTER)
         logger.addHandler(console_handler)
+
+        # 创建日志目录
+        LOG_DIR = os.getenv('LOG_DIR', 'logs')
+        os.makedirs(LOG_DIR, exist_ok=True)
+
+        try:
+            # 尝试添加文件处理器
+            log_file = os.path.join(LOG_DIR, f'{name}.log')
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
+            )
+            file_handler.setFormatter(FORMATTER)
+            logger.addHandler(file_handler)
+        except Exception as e:
+            logger.warning(f"无法创建日志文件处理器: {str(e)}")
+            logger.warning("将只使用控制台日志输出")
 
         Logger._loggers[name] = logger
         return logger

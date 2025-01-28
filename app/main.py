@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.logger import get_main_logger
+import os
 
 from app.api import openai_routes
 import uvicorn
@@ -10,7 +11,11 @@ from app.middleware.request_logging_middleware import RequestLoggingMiddleware
 # 配置日志
 logger = get_main_logger()
 
-app = FastAPI()
+app = FastAPI(
+    title="OpenAI API 代理服务",
+    description="支持多API Key轮询的OpenAI API代理服务",
+    version="1.0.0"
+)
 
 # 添加请求日志中间件
 # app.add_middleware(RequestLoggingMiddleware)
@@ -36,4 +41,10 @@ async def health_check():
     return {"status": "healthy"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    port = int(os.getenv("PORT", 7860))
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        log_level="info"
+    )
