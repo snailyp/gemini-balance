@@ -40,18 +40,27 @@ pip install -r requirements.txt
 
 ```env
 # API密钥列表，支持为每个密钥配置独立的代理地址
-API_KEYS=[
+# 方式一：简单配置（使用默认代理地址）
+API_KEYS='["your-api-key-1","your-api-key-2"]'
+
+# 方式二：高级配置（指定代理地址）
+API_KEYS='[
     {"key": "your-api-key-1", "base_url": "https://api.openai.com/v1"},
     {"key": "your-api-key-2", "base_url": "https://your-proxy-domain.com/v1"},
-    {"key": "your-api-key-3"}  # 不指定base_url时使用默认地址
-]
+    {"key": "your-api-key-3"}
+]'
 
 # 允许的访问令牌列表
-ALLOWED_TOKENS=["your-access-token-1","your-access-token-2"]
+ALLOWED_TOKENS='["your-access-token-1","your-access-token-2"]'
 
 # 可用模型列表（可选，默认包含gpt-4-turbo-preview等模型）
-AVAILABLE_MODELS=["gpt-4-turbo-preview","gpt-4","gpt-3.5-turbo","text-embedding-3-small"]
+AVAILABLE_MODELS='["gpt-4-turbo-preview","gpt-4","gpt-3.5-turbo","text-embedding-3-small"]'
 ```
+
+注意：
+1. 环境变量中的 JSON 字符串必须使用单引号包裹
+2. 列表类型的配置必须是有效的 JSON 格式
+3. 所有配置项都支持通过环境变量传入
 
 ### 🐳 Docker 部署
 
@@ -63,11 +72,19 @@ AVAILABLE_MODELS=["gpt-4-turbo-preview","gpt-4","gpt-3.5-turbo","text-embedding-
 # 拉取最新版本镜像
 docker pull ghcr.io/[your-username]/[repo-name]:latest
 
-# 运行容器
+# 运行容器（简单配置）
+docker run -d \
+  -p 8000:8000 \
+  -e API_KEYS='["your-api-key-1","your-api-key-2"]' \
+  -e ALLOWED_TOKENS='["your-token-1","your-token-2"]' \
+  ghcr.io/[your-username]/[repo-name]:latest
+
+# 运行容器（高级配置）
 docker run -d \
   -p 8000:8000 \
   -e API_KEYS='[{"key":"your-api-key-1"},{"key":"your-api-key-2","base_url":"https://your-proxy.com/v1"}]' \
   -e ALLOWED_TOKENS='["your-token-1","your-token-2"]' \
+  -e AVAILABLE_MODELS='["gpt-4-turbo-preview","gpt-3.5-turbo"]' \
   ghcr.io/[your-username]/[repo-name]:latest
 ```
 
