@@ -1,8 +1,9 @@
 from http.client import HTTPException
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from app.core.security import SecurityService
+from app.core.security import SecurityService, validate_token
 from app.services.chat.retry_handler import RetryHandler
 from app.services.key_manager import KeyManager
 from app.services.model_service import ModelService
@@ -14,12 +15,16 @@ from app.core.logger import get_openai_logger
 
 router = APIRouter()
 logger = get_openai_logger()
+security = HTTPBearer()
 
 # 初始化服务
 security_service = SecurityService(settings.ALLOWED_TOKENS, settings.AUTH_TOKEN)
-key_manager = KeyManager(settings.API_KEYS)
-model_service = ModelService(settings.MODEL_SEARCH)
-embedding_service = EmbeddingService(settings.BASE_URL)
+key_manager = KeyManager(settings.api_key_configs)
+model_service = ModelService()
+embedding_service = EmbeddingService()
+
+# 创建重试处理器
+retry_handler = RetryHandler(key_manager)
 
 
 @router.get("/v1/models")

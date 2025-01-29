@@ -9,6 +9,10 @@ logger = get_key_manager_logger()
 
 class KeyManager:
     def __init__(self, api_key_configs: List[APIKeyConfig]):
+        if not api_key_configs:
+            logger.error("没有提供有效的API密钥配置")
+            raise ValueError("API密钥配置列表不能为空")
+
         self.api_key_configs = api_key_configs
         self.key_config_cycle = cycle(api_key_configs)
         self.key_cycle_lock = asyncio.Lock()
