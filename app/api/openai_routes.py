@@ -21,7 +21,7 @@ security = HTTPBearer()
 security_service = SecurityService(settings.ALLOWED_TOKENS, settings.AUTH_TOKEN)
 key_manager = KeyManager(settings.api_key_configs)
 model_service = ModelService()
-embedding_service = EmbeddingService()
+embedding_service = EmbeddingService(key_manager)
 
 # 创建重试处理器
 retry_handler = RetryHandler(key_manager)
@@ -77,10 +77,7 @@ async def embedding(
     logger.info("-" * 50 + "embedding" + "-" * 50)
     logger.info(f"Handling embedding request for model: {request.model}")
     try:
-        response = await embedding_service.create_embedding(
-            input_text=request.input,
-            model=request.model
-        )
+        response = await embedding_service.create_embedding(request)
         logger.info("Embedding request successful")
         return response
     except Exception as e:
