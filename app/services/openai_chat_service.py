@@ -1,8 +1,9 @@
 # app/services/chat_service.py
 
 import json
+import httpx
 from typing import Dict, Any, AsyncGenerator, List, Union
-from app.core.logger import get_openai_logger
+from app.core.logger import get_openai_logger, get_chat_logger
 from app.services.chat.message_converter import OpenAIMessageConverter
 from app.services.chat.response_handler import OpenAIResponseHandler  
 from app.services.chat.api_client import GeminiApiClient
@@ -11,31 +12,78 @@ from app.core.config import settings
 from app.services.key_manager import KeyManager
 
 logger = get_openai_logger()
+
 class OpenAIChatService:
     """聊天服务"""
 
-    def __init__(self, base_url: str, key_manager: KeyManager):
+    def __init__(self, key_manager: KeyManager):
         self.message_converter = OpenAIMessageConverter()
         self.response_handler = OpenAIResponseHandler(config=None)
-        self.api_client = GeminiApiClient(base_url)
+        self.api_client = GeminiApiClient(None)
         self.key_manager = key_manager
         
     async def create_chat_completion(
-        self,
-        request: ChatRequest,
-        api_key: str,
+        self, request: ChatRequest
     ) -> Union[Dict[str, Any], AsyncGenerator[str, None]]:
         """创建聊天完成"""
-        # 转换消息格式
-        messages = self.message_converter.convert(request.messages)
+        try:
+            # 获取下一个可用的API密钥配置
+            key_config = await self.key_manager.get_next_working_key_config()
+            
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {key_config.key}"
+            }
+
+            async with httpx.AsyncClient() as client:
+                if request.stream:
+                    return self._stream_response(client, key_config.base_url, headers, request)
+                else:
+                    return await self._regular_response(client, key_config.base_url, headers, request)
+
+        except Exception as e:
+            logger.error(f"Error in chat completion: {str(e)}")
+            # 处理API密钥失败
+            if 'key_config' in locals():
+                await self.key_manager.handle_api_failure(key_config.key)
+            raise
+
+    async def _regular_response(
+        self, client: httpx.AsyncClient, base_url: str, headers: Dict[str, str], request: ChatRequest
+    ) -> Dict[str, Any]:
+        """处理普通响应"""
+        response = await client.post(
+            f"{base_url}/chat/completions",
+            headers=headers,
+            json=request.model_dump(exclude_none=True),
+            timeout=30.0
+        )
         
-        # 构建请求payload
-        payload = self._build_payload(request, messages)
-        
-        if request.stream:
-            return self._handle_stream_completion(request.model, payload, api_key)
-        return self._handle_normal_completion(request.model, payload, api_key)
-        
+        if response.status_code != 200:
+            logger.error(f"Chat completion failed with status {response.status_code}: {response.text}")
+            raise Exception(f"Chat completion failed: {response.text}")
+            
+        return response.json()
+
+    async def _stream_response(
+        self, client: httpx.AsyncClient, base_url: str, headers: Dict[str, str], request: ChatRequest
+    ) -> AsyncGenerator[str, None]:
+        """处理流式响应"""
+        async with client.stream(
+            "POST",
+            f"{base_url}/chat/completions",
+            headers=headers,
+            json=request.model_dump(exclude_none=True),
+            timeout=30.0
+        ) as response:
+            if response.status_code != 200:
+                logger.error(f"Streaming chat completion failed with status {response.status_code}: {response.text}")
+                raise Exception(f"Streaming chat completion failed: {await response.aread()}")
+
+            async for line in response.aiter_lines():
+                if line.strip():  # 忽略空行
+                    yield line + "\n"
+
     def _handle_normal_completion(
         self,
         model: str,
