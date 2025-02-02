@@ -3,6 +3,7 @@ from typing import Dict, Any, List
 from app.core.logger import get_embeddings_logger
 from app.services.key_manager import KeyManager
 from app.schemas.openai_models import EmbeddingRequest
+from app.core.config import settings
 
 logger = get_embeddings_logger()
 
@@ -23,7 +24,7 @@ class EmbeddingService:
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{key_config.base_url}/embeddings",
+                    f"{settings.BASE_URL}/embeddings",
                     headers=headers,
                     json={
                         "input": request.input,

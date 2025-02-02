@@ -68,8 +68,7 @@ class KeyManager:
         async with self.failure_count_lock:
             for config in self.api_key_configs:
                 key_info = {
-                    "key": config.key,
-                    "base_url": config.base_url
+                    "key": config.key
                 }
                 if self.key_failure_counts[config.key] < self.MAX_FAILURES:
                     valid_keys.append(key_info)

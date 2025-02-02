@@ -37,9 +37,9 @@ class OpenAIChatService:
 
             async with httpx.AsyncClient() as client:
                 if request.stream:
-                    return self._stream_response(client, key_config.base_url, headers, request)
+                    return self._stream_response(client, settings.BASE_URL, headers, request)
                 else:
-                    return await self._regular_response(client, key_config.base_url, headers, request)
+                    return await self._regular_response(client, settings.BASE_URL, headers, request)
 
         except Exception as e:
             logger.error(f"Error in chat completion: {str(e)}")

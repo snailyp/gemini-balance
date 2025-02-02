@@ -39,16 +39,15 @@ pip install -r requirements.txt
 创建 `.env` 文件并配置以下参数:
 
 ```env
-# API密钥列表，支持为每个密钥配置独立的代理地址
+# API密钥列表，支持统一的代理地址配置
 # 方式一：简单配置（使用默认代理地址）
 API_KEYS='["your-api-key-1","your-api-key-2"]'
 
-# 方式二：高级配置（指定代理地址）
-API_KEYS='[
-    {"key": "your-api-key-1", "base_url": "https://api.openai.com/v1"},
-    {"key": "your-api-key-2", "base_url": "https://your-proxy-domain.com/v1"},
-    {"key": "your-api-key-3"}
-]'
+# 方式二：简单字符串列表
+API_KEYS='["sk-xxx1","sk-xxx2"]'
+
+# 统一的代理地址配置（可选，默认为 https://api.openai.com/v1）
+BASE_URL="https://your-proxy-domain.com/v1"
 
 # 允许的访问令牌列表
 ALLOWED_TOKENS='["your-access-token-1","your-access-token-2"]'
@@ -82,7 +81,8 @@ docker run -d \
 # 运行容器（高级配置）
 docker run -d \
   -p 8000:8000 \
-  -e API_KEYS='[{"key":"your-api-key-1"},{"key":"your-api-key-2","base_url":"https://your-proxy.com/v1"}]' \
+  -e API_KEYS='["your-api-key-1","your-api-key-2"]' \
+  -e BASE_URL="https://your-proxy-domain.com/v1" \
   -e ALLOWED_TOKENS='["your-token-1","your-token-2"]' \
   -e AVAILABLE_MODELS='["gpt-4-turbo-preview","gpt-3.5-turbo"]' \
   ghcr.io/[your-username]/[repo-name]:latest
@@ -97,7 +97,8 @@ docker build -t openai-proxy .
 # 运行容器
 docker run -d \
   -p 8000:8000 \
-  -e API_KEYS='[{"key":"your-api-key-1"},{"key":"your-api-key-2","base_url":"https://your-proxy.com/v1"}]' \
+  -e API_KEYS='["your-api-key-1","your-api-key-2"]' \
+  -e BASE_URL="https://your-proxy-domain.com/v1" \
   -e ALLOWED_TOKENS='["your-token-1","your-token-2"]' \
   openai-proxy
 ```
@@ -180,7 +181,7 @@ GET /health
 - 默认服务端口为 8000
 - API Key 失败重试次数默认为 10 次
 - 可以通过环境变量 AVAILABLE_MODELS 配置可用的模型列表
-- 每个 API Key 可以配置独立的代理地址，默认使用 OpenAI 官方地址
+- 可以通过环境变量 BASE_URL 配置统一的代理地址，默认使用 OpenAI 官方地址
 - Docker 镜像支持 AMD64 和 ARM64 架构
 - 每次推送到主分支或创建新的标签时会自动构建并发布 Docker 镜像
 
