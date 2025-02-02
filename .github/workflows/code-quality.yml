@@ -1,0 +1,49 @@
+name: Code Quality Check
+
+on:
+  push:
+    branches: [ "feature/unified-base-url" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10"]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest black isort mypy
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    - name: Check code formatting with Black
+      run: |
+        black --check app/
+        
+    - name: Check imports with isort
+      run: |
+        isort --check-only --diff app/
+        
+    - name: Lint with flake8
+      run: |
+        flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        
+    - name: Type checking with mypy
+      run: |
+        mypy app/
+        
+    - name: Run tests
+      run: |
+        pytest tests/ -v 
