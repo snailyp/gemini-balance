@@ -1,5 +1,6 @@
 # app/services/chat/message_converter.py
 
+import json
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
@@ -49,18 +50,65 @@ class OpenAIMessageConverter(MessageConverter):
                         role = "model"
 
             parts = []
-            if isinstance(msg["content"], str) and msg["content"]:
-                # 请求 gemini 接口时如果包含 content 字段但内容为空时会返回 400 错误，所以需要判断是否为空并移除
-                parts.append({"text": msg["content"]})
-            elif isinstance(msg["content"], list):
-                for content in msg["content"]:
-                    if isinstance(content, str) and content:
-                        parts.append({"text": content})
-                    elif isinstance(content, dict):
-                        if content["type"] == "text" and content["text"]:
-                            parts.append({"text": content["text"]})
-                        elif content["type"] == "image_url":
-                            parts.append(_convert_image(content["image_url"]["url"]))
+
+            if role == "assistant" and "tool_calls" in msg:
+                role = "model" 
+                for tool_call in msg["tool_calls"]:
+                    if tool_call["type"] == "function":
+                        function_name = tool_call["function"]["name"]
+                        try:
+                            arguments = json.loads(tool_call["function"]["arguments"])
+                        except:
+                            arguments = tool_call["function"]["arguments"]
+                        
+                        parts.append({
+                            "functionCall": {
+                                "name": function_name,
+                                "args": arguments
+                            }
+                        })
+                        
+            elif role == "tool" and "content" in msg and "tool_call_id" in msg:
+                role = "user"
+                tool_response_content = msg["content"]
+                try:
+                    if isinstance(tool_response_content, str):
+                        tool_response_data = json.loads(tool_response_content)
+                    else:
+                        tool_response_data = tool_response_content
+                except:
+                    tool_response_data = tool_response_content
+
+                function_name = ""
+                for prev_msg in messages:
+                    if prev_msg.get("role") == "assistant" and "tool_calls" in prev_msg:
+                        for tool_call in prev_msg["tool_calls"]:
+                            if tool_call.get("id") == msg["tool_call_id"]:
+                                function_name = tool_call["function"]["name"]
+                                break
+                
+                parts.append({
+                    "functionResponse": {
+                        "name": function_name,
+                        "response": {
+                            "name": function_name,
+                            "content": tool_response_data
+                        }
+                    }
+                })
+
+            elif "content" in msg:
+                if isinstance(msg["content"], str) and msg["content"]:
+                    parts.append({"text": msg["content"]})
+                elif isinstance(msg["content"], list):
+                    for content in msg["content"]:
+                        if isinstance(content, str) and content:
+                            parts.append({"text": content})
+                        elif isinstance(content, dict):
+                            if content["type"] == "text" and content["text"]:
+                                parts.append({"text": content["text"]})
+                            elif content["type"] == "image_url":
+                                parts.append(_convert_image(content["image_url"]["url"]))
 
             if parts:
                 if role == "system":
