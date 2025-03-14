@@ -47,7 +47,7 @@ def _handle_openai_stream_response(response: Dict[str, Any], model: str, finish_
         "object": "chat.completion.chunk",
         "created": int(time.time()),
         "model": model,
-        "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+        "choices": [{"index": 0, "delta": delta, "finish_reason": "tool_calls" if tool_calls else finish_reason}],
     }
 
 
@@ -62,7 +62,7 @@ def _handle_openai_normal_response(response: Dict[str, Any], model: str, finish_
             {
                 "index": 0,
                 "message": {"role": "assistant", "content": text, "tool_calls": tool_calls},
-                "finish_reason": finish_reason,
+                "finish_reason": "tool_calls" if tool_calls else finish_reason,
             }
         ],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
