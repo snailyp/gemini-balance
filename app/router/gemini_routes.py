@@ -86,7 +86,7 @@ async def list_models(
 async def generate_content(
     model_name: str,
     request: GeminiRequest,
-    _=Depends(security_service.verify_goog_api_key),
+    #_=Depends(security_service.verify_goog_api_key),
     api_key: str = Depends(get_next_working_key),
     key_manager: KeyManager = Depends(get_key_manager)
 ):
@@ -118,7 +118,7 @@ async def generate_content(
 async def stream_generate_content(
     model_name: str,
     request: GeminiRequest,
-    _=Depends(security_service.verify_goog_api_key),
+    #_=Depends(security_service.verify_goog_api_key),
     api_key: str = Depends(get_next_working_key),
     key_manager: KeyManager = Depends(get_key_manager)
 ):
