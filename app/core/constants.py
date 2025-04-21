@@ -27,7 +27,7 @@ DEFAULT_CREATE_IMAGE_MODEL = "imagen-3.0-generate-002"
 VALID_IMAGE_RATIOS = ["1:1", "3:4", "4:3", "9:16", "16:9"]
 
 # 上传提供商
-UPLOAD_PROVIDERS = ["smms", "picgo", "cloudflare_imgbed"]
+UPLOAD_PROVIDERS = ["smms", "picgo", "cloudflare_imgbed", "s3"]
 DEFAULT_UPLOAD_PROVIDER = "smms"
 
 # 流式输出相关常量

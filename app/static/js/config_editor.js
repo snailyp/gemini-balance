@@ -297,7 +297,13 @@ async function initConfig() {
             FILTERED_MODELS: ['gemini-1.0-pro-latest'],
             UPLOAD_PROVIDER: 'smms',
             THINKING_MODELS: [],
-            THINKING_BUDGET_MAP: {}
+            THINKING_BUDGET_MAP: {},
+            S3_ACCESS_KEY: '',
+            S3_SECRET_KEY: '',
+            S3_ENDPOINT_URL: '',
+            S3_REGION: 'us-east-1',
+            S3_BUCKET_NAME: '',
+            S3_URL_PREFIX: ''
         };
 
         populateForm(defaultConfig);

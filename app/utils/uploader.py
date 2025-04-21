@@ -390,4 +390,124 @@ class ImageUploaderFactory:
                 credentials["auth_code"],
                 credentials["base_url"]
             )
+        elif provider == "s3":
+            return S3Uploader(
+                access_key=credentials["access_key"],
+                secret_key=credentials["secret_key"],
+                endpoint_url=credentials["endpoint_url"],
+                region=credentials["region"],
+                bucket_name=credentials["bucket_name"],
+                url_prefix=credentials.get("url_prefix", "")
+            )
         raise ValueError(f"Unknown provider: {provider}")
+
+class S3Uploader(ImageUploader):
+    """S3对象存储上传器"""
+    
+    def __init__(self, access_key: str, secret_key: str, endpoint_url: str, 
+                 region: str, bucket_name: str, url_prefix: str = ""):
+        """
+        初始化S3对象存储上传器
+        
+        Args:
+            access_key: S3访问密钥
+            secret_key: S3密钥
+            endpoint_url: S3端点URL，例如：https://s3.amazonaws.com
+            region: S3区域，例如：us-east-1
+            bucket_name: S3存储桶名称
+            url_prefix: URL前缀，用于生成完整URL
+        """
+        self.access_key = access_key
+        self.secret_key = secret_key
+        self.endpoint_url = endpoint_url
+        self.region = region
+        self.bucket_name = bucket_name
+        self.url_prefix = url_prefix
+        
+    def upload(self, file: bytes, filename: str) -> UploadResponse:
+        """
+        上传图片到S3对象存储
+        
+        Args:
+            file: 图片文件二进制数据
+            filename: 文件名
+            
+        Returns:
+            UploadResponse: 上传响应对象
+            
+        Raises:
+            UploadError: 上传失败时抛出异常
+        """
+        try:
+            # 这里需要导入boto3，这是一个懒加载方式
+            # 如果系统没有安装boto3，会在此处抛出ImportError
+            try:
+                import boto3
+                from botocore.exceptions import ClientError
+            except ImportError:
+                raise UploadError(
+                    message="boto3 library is not installed. Please install it with 'pip install boto3'",
+                    error_type=UploadErrorType.UNKNOWN
+                )
+                
+            # 创建S3客户端
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=self.access_key,
+                aws_secret_access_key=self.secret_key,
+                endpoint_url=self.endpoint_url,
+                region_name=self.region
+            )
+            
+            # 上传文件到S3
+            try:
+                from io import BytesIO
+                s3_client.upload_fileobj(
+                    BytesIO(file),
+                    self.bucket_name,
+                    filename,
+                    ExtraArgs={'ContentType': 'image/png'}
+                )
+            except ClientError as e:
+                raise UploadError(
+                    message=f"Failed to upload file to S3: {str(e)}",
+                    error_type=UploadErrorType.SERVER_ERROR,
+                    original_error=e
+                )
+                
+            # 构建完整URL
+            # 如果提供了URL前缀，则使用它，否则基于endpoint_url和bucket_name构建
+            if self.url_prefix:
+                full_url = f"{self.url_prefix.rstrip('/')}/{filename}"
+            else:
+                # 标准S3 URL格式
+                base_url = self.endpoint_url.rstrip('/')
+                full_url = f"{base_url}/{self.bucket_name}/{filename}"
+                
+            # 构建图片元数据
+            image_metadata = ImageMetadata(
+                width=0,  # S3不返回宽度
+                height=0,  # S3不返回高度
+                filename=filename,
+                size=len(file),  # 使用文件大小
+                url=full_url,
+                delete_url=None  # S3不返回删除URL
+            )
+            
+            return UploadResponse(
+                success=True,
+                code="success",
+                message="Upload success",
+                data=image_metadata
+            )
+            
+        except UploadError:
+            # 重新抛出已经是UploadError类型的异常
+            raise
+        except Exception as e:
+            # 处理其他未预期的错误
+            raise UploadError(
+                message=f"Upload failed: {str(e)}",
+                error_type=UploadErrorType.UNKNOWN,
+                original_error=e
+            )

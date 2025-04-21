@@ -122,6 +122,16 @@ class ImageCreateService:
                             base_url=settings.CLOUDFLARE_IMGBED_URL,
                             auth_code=settings.CLOUDFLARE_IMGBED_AUTH_CODE,
                         )
+                    elif settings.UPLOAD_PROVIDER == "s3":
+                        image_uploader = ImageUploaderFactory.create(
+                            provider=settings.UPLOAD_PROVIDER,
+                            access_key=settings.S3_ACCESS_KEY,
+                            secret_key=settings.S3_SECRET_KEY,
+                            endpoint_url=settings.S3_ENDPOINT_URL,
+                            region=settings.S3_REGION,
+                            bucket_name=settings.S3_BUCKET_NAME,
+                            url_prefix=settings.S3_URL_PREFIX,
+                        )
                     else:
                         raise ValueError(
                             f"Unsupported upload provider: {settings.UPLOAD_PROVIDER}"

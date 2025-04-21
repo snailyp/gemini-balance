@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     PICGO_API_KEY: str = ""
     CLOUDFLARE_IMGBED_URL: str = ""
     CLOUDFLARE_IMGBED_AUTH_CODE: str = ""
+    # S3对象存储配置
+    S3_ACCESS_KEY: str = ""
+    S3_SECRET_KEY: str = ""
+    S3_ENDPOINT_URL: str = ""
+    S3_REGION: str = "us-east-1"
+    S3_BUCKET_NAME: str = ""
+    S3_URL_PREFIX: str = ""
     
     # 流式输出优化器配置
     STREAM_OPTIMIZER_ENABLED: bool = False
