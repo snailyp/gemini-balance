@@ -40,6 +40,7 @@ class GenerationConfig(BaseModel):
     frequencyPenalty: Optional[float] = None
     responseLogprobs: Optional[bool] = None
     logprobs: Optional[int] = None
+    thinkingConfig: Optional[Dict[str, Any]] = None
 
 
 class SystemInstruction(BaseModel):

@@ -97,11 +97,21 @@ def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
     if model.endswith("-image") or model.endswith("-image-generation"):
         payload.pop("systemInstruction")
         payload["generationConfig"]["responseModalities"] = ["Text", "Image"]
-        
-    if model.endswith("-non-thinking"):
-        payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0} 
-    if model in settings.THINKING_BUDGET_MAP:
-        payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": settings.THINKING_BUDGET_MAP.get(model,1000)}
+    
+    # 处理思考配置：优先使用客户端提供的配置，否则使用默认配置
+    client_thinking_config = None
+    if request.generationConfig and request.generationConfig.thinkingConfig:
+        client_thinking_config = request.generationConfig.thinkingConfig
+    
+    if client_thinking_config is not None:
+        # 客户端提供了思考配置，直接使用
+        payload["generationConfig"]["thinkingConfig"] = client_thinking_config
+    else:
+        # 客户端没有提供思考配置，使用默认配置    
+        if model.endswith("-non-thinking"):
+            payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0} 
+        elif model in settings.THINKING_BUDGET_MAP:
+            payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": settings.THINKING_BUDGET_MAP.get(model,1000)}
 
     return payload
 
