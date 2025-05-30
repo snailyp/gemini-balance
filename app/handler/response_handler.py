@@ -39,7 +39,7 @@ class GeminiResponseHandler(ResponseHandler):
 def _handle_openai_stream_response(
     response: Dict[str, Any], model: str, finish_reason: str, usage_metadata: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(
+    text, tool_calls, _ = _extract_result(
         response, model, stream=True, gemini_format=False
     )
     if not text and not tool_calls:
@@ -63,10 +63,10 @@ def _handle_openai_stream_response(
 def _handle_openai_normal_response(
     response: Dict[str, Any], model: str, finish_reason: str, usage_metadata: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(
+    text, tool_calls, thought = _extract_result(
         response, model, stream=False, gemini_format=False
     )
-    return {
+    response_data = {
         "id": f"chatcmpl-{uuid.uuid4()}",
         "object": "chat.completion",
         "created": int(time.time()),
@@ -84,6 +84,9 @@ def _handle_openai_normal_response(
         ],
         "usage": {"prompt_tokens": usage_metadata.get("promptTokenCount", 0), "completion_tokens": usage_metadata.get("candidatesTokenCount",0), "total_tokens": usage_metadata.get("totalTokenCount", 0)},
     }
+    if thought:
+        response_data["thought"] = thought
+    return response_data
 
 
 class OpenAIResponseHandler(ResponseHandler):
@@ -156,15 +159,16 @@ def _extract_result(
     model: str,
     stream: bool = False,
     gemini_format: bool = False,
-) -> tuple[str, List[Dict[str, Any]]]:
-    text, tool_calls = "", []
+) -> tuple[str, List[Dict[str, Any]], Optional[str]]:
+    """Extract text, tool calls and thought from Gemini response."""
+    text, tool_calls, thought = "", [], None
     if stream:
         if response.get("candidates"):
             candidate = response["candidates"][0]
             content = candidate.get("content", {})
             parts = content.get("parts", [])
             if not parts:
-                return "", []
+                return "", [], None
             if "text" in parts[0]:
                 text = parts[0].get("text")
             elif "executableCode" in parts[0]:
@@ -187,12 +191,8 @@ def _extract_result(
             if "thinking" in model:
                 if settings.SHOW_THINKING_PROCESS:
                     if len(candidate["content"]["parts"]) == 2:
-                        text = (
-                            "> thinking\n\n"
-                            + candidate["content"]["parts"][0]["text"]
-                            + "\n\n---\n> output\n\n"
-                            + candidate["content"]["parts"][1]["text"]
-                        )
+                        thought = candidate["content"]["parts"][0].get("text", "")
+                        text = candidate["content"]["parts"][1].get("text", "")
                     else:
                         text = candidate["content"]["parts"][0]["text"]
                 else:
@@ -215,7 +215,7 @@ def _extract_result(
             )
         else:
             text = "暂无返回"
-    return text, tool_calls
+    return text, tool_calls, thought
 
 
 def _extract_image_data(part: dict) -> str:
@@ -288,7 +288,7 @@ def _extract_tool_calls(
 def _handle_gemini_stream_response(
     response: Dict[str, Any], model: str, stream: bool
 ) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(
+    text, tool_calls, _ = _extract_result(
         response, model, stream=stream, gemini_format=True
     )
     if tool_calls:
@@ -302,11 +302,13 @@ def _handle_gemini_stream_response(
 def _handle_gemini_normal_response(
     response: Dict[str, Any], model: str, stream: bool
 ) -> Dict[str, Any]:
-    text, tool_calls = _extract_result(
+    text, tool_calls, thought = _extract_result(
         response, model, stream=stream, gemini_format=True
     )
     if tool_calls:
         content = {"parts": tool_calls, "role": "model"}
+    elif thought is not None:
+        content = {"parts": [{"text": thought}, {"text": text}], "role": "model"}
     else:
         content = {"parts": [{"text": text}], "role": "model"}
     response["candidates"][0]["content"] = content
