@@ -31,7 +31,7 @@ jobs:
       # Step 3: 可选，构建zip文件
       - name: Create ZIP file
         run: |
-          zip -r gemini-balance.zip . -x "*.git*" "*.github*" "*.env*" "logs/*" "tests/*"
+          zip -r blan.zip . -x "*.git*" "*.github*" "*.env*" "logs/*" "tests/*"
 
       # Step 4: 可选，上传构建文件
       - name: Upload Release Asset
