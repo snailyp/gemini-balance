@@ -40,6 +40,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./gemini-balance.zip # 替换为你的构建文件路径
-          asset_name: gemini-balance.zip  # 替换为你的文件名
+          asset_path: ./blan.zip # 替换为你的构建文件路径
+          asset_name: blan.zip  # 替换为你的文件名
           asset_content_type: application/zip
