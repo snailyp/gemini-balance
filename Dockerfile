@@ -16,7 +16,7 @@ ENV IMAGE_MODELS='["gemini-2.0-flash-exp"]'
 ENV SEARCH_MODELS='["gemini-2.0-flash-exp","gemini-2.0-pro-exp"]'
 
 # Expose port
-EXPOSE 8000
+EXPOSE 6000
 
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6000", "--no-access-log"]

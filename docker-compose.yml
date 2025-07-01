@@ -6,7 +6,7 @@ services:
     container_name: gemini-balance
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "5005:8000"
     env_file:
       - .env
     depends_on:
@@ -23,10 +23,11 @@ services:
     container_name: gemini-balance-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: your_root_password
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_HOST : mysql
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: mysql_database
+      MYSQL_USER: mysql_user
+      MYSQL_PASSWORD: mysql_password
     # ports:
     #   - "3306:3306"
     volumes:

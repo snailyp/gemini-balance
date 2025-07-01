@@ -53,7 +53,10 @@ class Settings(BaseSettings):
     # API相关配置
     API_KEYS: List[str]
     ALLOWED_TOKENS: List[str]
-    BASE_URL: str = f"https://generativelanguage.googleapis.com/{API_VERSION}"
+    GEMINI_BASE_URL: List[str] = [f"https://generativelanguage.googleapis.com/{API_VERSION}"]
+    GEMINI_BASE_URL_SELECTION_STRATEGY: str = "round_robin"  # round_robin, random, consistency_hash_by_api_key
+    OPENAI_BASE_URL: List[str] = ["https://api.openai.com/v1"]
+    OPENAI_BASE_URL_SELECTION_STRATEGY: str = "round_robin" # round_robin, random, consistency_hash_by_api_key
     AUTH_TOKEN: str = ""
     MAX_FAILURES: int = 3
     TEST_MODEL: str = DEFAULT_MODEL
@@ -62,7 +65,8 @@ class Settings(BaseSettings):
     PROXIES: List[str] = []
     PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY: bool = True  # 是否使用一致性哈希来选择代理
     VERTEX_API_KEYS: List[str] = []
-    VERTEX_EXPRESS_BASE_URL: str = "https://aiplatform.googleapis.com/v1beta1/publishers/google"
+    VERTEX_EXPRESS_BASE_URL: List[str] = ["https://aiplatform.googleapis.com/v1beta1/publishers/google"]
+    VERTEX_EXPRESS_BASE_URL_SELECTION_STRATEGY: str = "round_robin" # round_robin, random, consistency_hash_by_api_key
  
     # 模型相关配置
     SEARCH_MODELS: List[str] = ["gemini-2.0-flash-exp"]
