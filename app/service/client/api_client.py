@@ -72,7 +72,7 @@ class GeminiApiClient(ApiClient):
 
         base_url = self._select_base_url(api_key)
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
-            url = f"{base_url}/models?key={api_key}"
+            url = f"{base_url}/models?key={api_key}&pageSize=1000"
             try:
                 response = await client.get(url)
                 response.raise_for_status()
