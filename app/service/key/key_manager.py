@@ -1,6 +1,6 @@
 import asyncio
 from itertools import cycle
-from typing import Dict
+from typing import Dict, Union
 
 from app.config.config import settings
 from app.log.logger import get_key_manager_logger
@@ -178,19 +178,20 @@ class KeyManager:
         if self.api_keys:
             return self.api_keys[0]
         if not self.api_keys:
-            logger.warning("API key list is empty, cannot get first valid key.")
+            logger.warning(
+                "API key list is empty, cannot get first valid key.")
             return ""
         return self.api_keys[0]
 
 
 _singleton_instance = None
 _singleton_lock = asyncio.Lock()
-_preserved_failure_counts: Dict[str, int] | None = None
-_preserved_vertex_failure_counts: Dict[str, int] | None = None
-_preserved_old_api_keys_for_reset: list | None = None
-_preserved_vertex_old_api_keys_for_reset: list | None = None
-_preserved_next_key_in_cycle: str | None = None
-_preserved_vertex_next_key_in_cycle: str | None = None
+_preserved_failure_counts: Union[Dict[str, int], None] = None
+_preserved_vertex_failure_counts: Union[Dict[str, int], None] = None
+_preserved_old_api_keys_for_reset: Union[list, None] = None
+_preserved_vertex_old_api_keys_for_reset: Union[list, None] = None
+_preserved_next_key_in_cycle: Union[str, None] = None
+_preserved_vertex_next_key_in_cycle: Union[str, None] = None
 
 
 async def get_key_manager_instance(
@@ -252,7 +253,8 @@ async def get_key_manager_instance(
                 _singleton_instance.vertex_key_failure_counts = (
                     current_vertex_failure_counts
                 )
-                logger.info("Inherited failure counts for applicable Vertex keys.")
+                logger.info(
+                    "Inherited failure counts for applicable Vertex keys.")
             _preserved_vertex_failure_counts = None
 
             # 2. 调整 key_cycle 的起始点
@@ -357,7 +359,7 @@ async def get_key_manager_instance(
                         f"Error determining start key for new Vertex key cycle from preserved state: {e}. "
                         "New cycle will start from the beginning."
                     )
-                
+
             if start_key_for_new_vertex_cycle and _singleton_instance.vertex_api_keys:
                 try:
                     target_idx = _singleton_instance.vertex_api_keys.index(
@@ -380,7 +382,7 @@ async def get_key_manager_instance(
                 except Exception as e:
                     logger.error(
                         f"Error advancing new Vertex key cycle: {e}. Cycle will start from beginning."
-                    ) 
+                    )
             else:
                 if _singleton_instance.vertex_api_keys:
                     logger.info(
@@ -418,7 +420,7 @@ async def reset_key_manager_instance():
             # 3. 保存 key_cycle 的下一个 key 提示
             try:
                 if _singleton_instance.api_keys:
-                    _preserved_next_key_in_cycle = (    
+                    _preserved_next_key_in_cycle = (
                         await _singleton_instance.get_next_key()
                     )
                 else:
@@ -427,9 +429,10 @@ async def reset_key_manager_instance():
                 logger.warning(
                     "Could not preserve next key hint: key cycle was empty or exhausted in old instance."
                 )
-                _preserved_next_key_in_cycle = None 
+                _preserved_next_key_in_cycle = None
             except Exception as e:
-                logger.error(f"Error preserving next key hint during reset: {e}")
+                logger.error(
+                    f"Error preserving next key hint during reset: {e}")
                 _preserved_next_key_in_cycle = None
 
             # 4. 保存 vertex_key_cycle 的下一个 key 提示
@@ -443,12 +446,12 @@ async def reset_key_manager_instance():
             except StopIteration:
                 logger.warning(
                     "Could not preserve next key hint: Vertex key cycle was empty or exhausted in old instance."
-                )   
+                )
                 _preserved_vertex_next_key_in_cycle = None
             except Exception as e:
-                logger.error(f"Error preserving next key hint during reset: {e}")
+                logger.error(
+                    f"Error preserving next key hint during reset: {e}")
                 _preserved_vertex_next_key_in_cycle = None
-                
 
             _singleton_instance = None
             logger.info(

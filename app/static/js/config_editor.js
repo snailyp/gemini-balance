@@ -12,7 +12,7 @@ const PROXY_REGEX =
   /(?:https?|socks5):\/\/(?:[^:@\/]+(?::[^@\/]+)?@)?(?:[^:\/\s]+)(?::\d+)?/g;
 const VERTEX_API_KEY_REGEX = /AQ\.[a-zA-Z0-9_]{50}/g; // 新增 Vertex API Key 正则
 const MASKED_VALUE = "••••••••";
- 
+
 // DOM Elements - Global Scope for frequently accessed elements
 const safetySettingsContainer = document.getElementById(
   "SAFETY_SETTINGS_container"
@@ -31,7 +31,7 @@ const bulkDeleteProxyModal = document.getElementById("bulkDeleteProxyModal");
 const bulkDeleteProxyInput = document.getElementById("bulkDeleteProxyInput");
 const resetConfirmModal = document.getElementById("resetConfirmModal");
 const configForm = document.getElementById("configForm"); // Added for frequent use
- 
+
 // Vertex API Key Modal Elements
 const vertexApiKeyModal = document.getElementById("vertexApiKeyModal");
 const vertexApiKeyBulkInput = document.getElementById("vertexApiKeyBulkInput");
@@ -41,7 +41,7 @@ const bulkDeleteVertexApiKeyModal = document.getElementById(
 const bulkDeleteVertexApiKeyInput = document.getElementById(
   "bulkDeleteVertexApiKeyInput"
 );
- 
+
 // Model Helper Modal Elements
 const modelHelperModal = document.getElementById("modelHelperModal");
 const modelHelperTitleElement = document.getElementById("modelHelperTitle");
@@ -384,7 +384,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   initializeSensitiveFields(); // Initialize sensitive field handling
- 
+
   // Vertex API Key Modal Elements and Events
   const addVertexApiKeyBtn = document.getElementById("addVertexApiKeyBtn");
   const closeVertexApiKeyModalBtn = document.getElementById(
@@ -408,7 +408,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const confirmBulkDeleteVertexApiKeyBtn = document.getElementById(
     "confirmBulkDeleteVertexApiKeyBtn"
   );
- 
+
   if (addVertexApiKeyBtn) {
     addVertexApiKeyBtn.addEventListener("click", () => {
       openModal(vertexApiKeyModal);
@@ -428,7 +428,7 @@ document.addEventListener("DOMContentLoaded", function () {
       "click",
       handleBulkAddVertexApiKeys
     );
- 
+
   if (bulkDeleteVertexApiKeyBtn) {
     bulkDeleteVertexApiKeyBtn.addEventListener("click", () => {
       openModal(bulkDeleteVertexApiKeyModal);
@@ -448,7 +448,7 @@ document.addEventListener("DOMContentLoaded", function () {
       "click",
       handleBulkDeleteVertexApiKeys
     );
- 
+
   // Model Helper Modal Event Listeners
   if (closeModelHelperModalBtn) {
     closeModelHelperModalBtn.addEventListener("click", () =>
@@ -765,7 +765,7 @@ async function initConfig() {
       FAKE_STREAM_EMPTY_DATA_INTERVAL_SECONDS: 5,
       // --- 结束：处理假流式配置的默认值 ---
     };
- 
+
     populateForm(defaultConfig);
     if (configForm) {
       // Ensure form exists
@@ -1177,7 +1177,7 @@ function handleBulkDeleteProxies() {
   }
   bulkDeleteProxyInput.value = "";
 }
- 
+
 /**
  * Handles the bulk addition of Vertex API keys from the modal input.
  */
@@ -1192,10 +1192,10 @@ function handleBulkAddVertexApiKeys() {
   ) {
     return;
   }
- 
+
   const bulkText = vertexApiKeyBulkInput.value;
   const extractedKeys = bulkText.match(VERTEX_API_KEY_REGEX) || [];
- 
+
   const currentKeyInputs = vertexApiKeyContainer.querySelectorAll(
     `.${ARRAY_INPUT_CLASS}.${SENSITIVE_INPUT_CLASS}`
   );
@@ -1206,16 +1206,16 @@ function handleBulkAddVertexApiKeys() {
         : input.value;
     })
     .filter((key) => key && key.trim() !== "" && key !== MASKED_VALUE);
- 
+
   const combinedKeys = new Set([...currentKeys, ...extractedKeys]);
   const uniqueKeys = Array.from(combinedKeys);
- 
+
   vertexApiKeyContainer.innerHTML = ""; // Clear existing items
- 
+
   uniqueKeys.forEach((key) => {
     addArrayItemWithValue("VERTEX_API_KEYS", key); // VERTEX_API_KEYS are sensitive
   });
- 
+
   // Ensure new sensitive inputs are masked
   const newKeyInputs = vertexApiKeyContainer.querySelectorAll(
     `.${ARRAY_INPUT_CLASS}.${SENSITIVE_INPUT_CLASS}`
@@ -1229,7 +1229,7 @@ function handleBulkAddVertexApiKeys() {
       input.dispatchEvent(focusoutEvent);
     }
   });
- 
+
   closeModal(vertexApiKeyModal);
   showNotification(
     `添加/更新了 ${uniqueKeys.length} 个唯一 Vertex 密钥`,
@@ -1237,7 +1237,7 @@ function handleBulkAddVertexApiKeys() {
   );
   vertexApiKeyBulkInput.value = "";
 }
- 
+
 /**
  * Handles the bulk deletion of Vertex API keys based on input from the modal.
  */
@@ -1252,15 +1252,15 @@ function handleBulkDeleteVertexApiKeys() {
   ) {
     return;
   }
- 
+
   const bulkText = bulkDeleteVertexApiKeyInput.value;
   if (!bulkText.trim()) {
     showNotification("请粘贴需要删除的 Vertex API 密钥", "warning");
     return;
   }
- 
+
   const keysToDelete = new Set(bulkText.match(VERTEX_API_KEY_REGEX) || []);
- 
+
   if (keysToDelete.size === 0) {
     showNotification(
       "未在输入内容中提取到有效的 Vertex API 密钥格式",
@@ -1268,10 +1268,10 @@ function handleBulkDeleteVertexApiKeys() {
     );
     return;
   }
- 
+
   const keyItems = vertexApiKeyContainer.querySelectorAll(`.${ARRAY_ITEM_CLASS}`);
   let deleteCount = 0;
- 
+
   keyItems.forEach((item) => {
     const input = item.querySelector(
       `.${ARRAY_INPUT_CLASS}.${SENSITIVE_INPUT_CLASS}`
@@ -1286,9 +1286,9 @@ function handleBulkDeleteVertexApiKeys() {
       deleteCount++;
     }
   });
- 
+
   closeModal(bulkDeleteVertexApiKeyModal);
- 
+
   if (deleteCount > 0) {
     showNotification(`成功删除了 ${deleteCount} 个匹配的 Vertex 密钥`, "success");
   } else {
@@ -1296,7 +1296,7 @@ function handleBulkDeleteVertexApiKeys() {
   }
   bulkDeleteVertexApiKeyInput.value = "";
 }
- 
+
 /**
  * Switches the active configuration tab.
  * @param {string} tabId - The ID of the tab to switch to.
@@ -1442,7 +1442,7 @@ function addArrayItemWithValue(key, value) {
   const isSensitive =
     key === "API_KEYS" || isAllowedToken || isVertexApiKey; // 更新敏感判断
   const modelId = isThinkingModel ? generateUUID() : null;
- 
+
   const arrayItem = document.createElement("div");
   arrayItem.className = `${ARRAY_ITEM_CLASS} flex items-center mb-2 gap-2`;
   if (isThinkingModel) {
@@ -1535,14 +1535,14 @@ function createAndAppendBudgetMapItem(mapKey, mapValue, modelId) {
   valueInput.value = isNaN(intValue) ? 0 : intValue;
   valueInput.placeholder = "预算 (整数)";
   valueInput.className = `${MAP_VALUE_INPUT_CLASS} w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-primary-500 focus:ring focus:ring-primary-200 focus:ring-opacity-50`;
-  valueInput.min = 0;
-  valueInput.max = 24576;
+  valueInput.min = -1;
+  valueInput.max = 32767;
   valueInput.addEventListener("input", function () {
-    let val = this.value.replace(/[^0-9]/g, "");
+    let val = this.value.replace(/[^0-9-]/g, "");
     if (val !== "") {
       val = parseInt(val, 10);
-      if (val < 0) val = 0;
-      if (val > 24576) val = 24576;
+      if (val < -1) val = -1;
+      if (val > 32767) val = 32767;
     }
     this.value = val; // Corrected variable name
   });

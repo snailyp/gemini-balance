@@ -1,6 +1,7 @@
 # app/service/stats_service.py
 
 import datetime
+from typing import Union
 
 from sqlalchemy import and_, case, func, or_, select
 
@@ -195,10 +196,11 @@ class StatsService:
             return details
 
         except Exception as e:
-            logger.error(f"Failed to get API call details for period '{period}': {e}")
+            logger.error(
+                f"Failed to get API call details for period '{period}': {e}")
             raise
 
-    async def get_key_usage_details_last_24h(self, key: str) -> dict | None:
+    async def get_key_usage_details_last_24h(self, key: str) -> Union[dict, None]:
         """
         获取指定 API 密钥在过去 24 小时内按模型统计的调用次数。
 
@@ -218,7 +220,8 @@ class StatsService:
         try:
             query = (
                 select(
-                    RequestLog.model_name, func.count(RequestLog.id).label("call_count")
+                    RequestLog.model_name, func.count(
+                        RequestLog.id).label("call_count")
                 )
                 .where(
                     RequestLog.api_key == key,
@@ -237,7 +240,8 @@ class StatsService:
                 )
                 return {}
 
-            usage_details = {row["model_name"]: row["call_count"] for row in results}
+            usage_details = {row["model_name"]: row["call_count"]
+                             for row in results}
             logger.info(
                 f"Successfully fetched usage details for key ending in ...{key[-4:]}: {usage_details}"
             )

@@ -1299,7 +1299,7 @@ endblock %} {% block head_extra_styles %}
                         </div> -->
           <small class="text-gray-500 mt-1 block"
             >为每个思考模型设置预算（整数，最大值
-            24576），此项与上方模型列表自动关联。</small
+            32767），此项与上方模型列表自动关联。</small
           >
         </div>
         <!-- 安全设置 -->
@@ -2355,7 +2355,7 @@ endblock %} {% block head_extra_styles %}
         let val = this.value.replace(/[^0-9]/g, "");
         if (val !== "") {
           val = parseInt(val, 10);
-          if (val > 24576) val = 24576;
+          if (val > 32767) val = 32767;
         }
         this.value = val;
 
