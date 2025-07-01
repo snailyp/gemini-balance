@@ -13,7 +13,7 @@ from app.handler.stream_optimizer import gemini_optimizer
 from app.log.logger import get_gemini_logger
 from app.service.client.api_client import GeminiApiClient
 from app.service.key.key_manager import KeyManager
-from app.database.services import add_error_log, add_request_log
+from app.database.services import error_log_service, request_log_service
 
 logger = get_gemini_logger()
 
@@ -116,11 +116,13 @@ def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
     return payload
 
 
+from app.config.config import settings
+
 class GeminiChatService:
     """聊天服务"""
 
-    def __init__(self, base_url: str, key_manager: KeyManager):
-        self.api_client = GeminiApiClient(base_url, settings.TIME_OUT)
+    def __init__(self, key_manager: KeyManager):
+        self.api_client = GeminiApiClient(settings.GEMINI_BASE_URL, settings.GEMINI_BASE_URL_SELECTION_STRATEGY, settings.TIME_OUT)
         self.key_manager = key_manager
         self.response_handler = GeminiResponseHandler()
 
@@ -174,7 +176,7 @@ class GeminiChatService:
             else:
                 status_code = 500
 
-            await add_error_log(
+            await error_log_service.add_log(
                 gemini_key=api_key,
                 model_name=model,
                 error_type="gemini-chat-non-stream",
@@ -186,7 +188,7 @@ class GeminiChatService:
         finally:
             end_time = time.perf_counter()
             latency_ms = int((end_time - start_time) * 1000)
-            await add_request_log(
+            await request_log_service.add_log(
                 model_name=model,
                 api_key=api_key,
                 is_success=is_success,
@@ -253,7 +255,7 @@ class GeminiChatService:
                 else:
                     status_code = 500
 
-                await add_error_log(
+                await error_log_service.add_log(
                     gemini_key=current_attempt_key,
                     model_name=model,
                     error_type="gemini-chat-stream",
@@ -277,7 +279,7 @@ class GeminiChatService:
             finally:
                 end_time = time.perf_counter()
                 latency_ms = int((end_time - start_time) * 1000)
-                await add_request_log(
+                await request_log_service.add_log(
                     model_name=model,
                     api_key=final_api_key,
                     is_success=is_success,

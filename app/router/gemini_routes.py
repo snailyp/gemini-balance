@@ -33,7 +33,7 @@ async def get_next_working_key(key_manager: KeyManager = Depends(get_key_manager
 
 async def get_chat_service(key_manager: KeyManager = Depends(get_key_manager)):
     """获取Gemini聊天服务实例"""
-    return GeminiChatService(settings.BASE_URL, key_manager)
+    return GeminiChatService(key_manager)
 
 
 @router.get("/models")
