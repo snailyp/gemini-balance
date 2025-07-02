@@ -130,6 +130,7 @@ def _build_payload(
         "tools": _build_tools(request, messages),
         "safetySettings": _get_safety_settings(request.model),
     }
+
     if request.max_tokens is not None:
         payload["generationConfig"]["maxOutputTokens"] = request.max_tokens
     if request.model.endswith("-image") or request.model.endswith("-image-generation"):
@@ -141,6 +142,7 @@ def _build_payload(
             "thinkingBudget": settings.THINKING_BUDGET_MAP.get(request.model, 1000)
         }
 
+    system_instruction_parts = []
     if (
         instruction
         and isinstance(instruction, dict)
@@ -149,7 +151,19 @@ def _build_payload(
         and not request.model.endswith("-image")
         and not request.model.endswith("-image-generation")
     ):
-        payload["systemInstruction"] = instruction
+        system_instruction_parts = [part for part in instruction.get("parts", []) if isinstance(part, dict)]
+        # 确保 parts 不为空
+        if not system_instruction_parts:
+            system_instruction_parts = [{"text": " "}]
+
+    if system_instruction_parts:
+        # Add system instruction as the first message in contents
+        payload["contents"].insert(0, {"role": "user", "parts": system_instruction_parts})
+        
+        # 确保 contents 中的每个消息都有非空的 parts
+        for msg in payload["contents"]:
+            if not msg.get("parts"):
+                msg["parts"] = [{"text": " "}]
 
     return payload
 
