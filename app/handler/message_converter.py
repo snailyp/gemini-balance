@@ -346,4 +346,10 @@ class OpenAIMessageConverter(MessageConverter):
                 "parts": system_instruction_parts,
             }
         )
+
+        # If there are system instructions but no other messages, add a user message with a placeholder text
+        # This is a workaround for APIs that require 'contents' to be non-empty and parts must not be empty
+        if not converted_messages and system_instruction:
+            converted_messages.append({"role": "user", "parts": [{"text": " "}]})
+
         return converted_messages, system_instruction
