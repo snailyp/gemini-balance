@@ -56,6 +56,7 @@
         </h2>
         
         <form id="auth-form" action="/auth" method="post" class="space-y-6 animate-slide-up">
+    {% csrf_token %}
             <div class="relative">
                 <i class="fas fa-key absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
                 <input
