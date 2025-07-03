@@ -935,7 +935,33 @@ endblock %} {% block head_extra_styles %}
           />
           <small class="text-gray-500 mt-1 block">Vertex Express API的基础URL</small>
         </div>
- 
+        <!-- 智能路由配置 -->
+        <div class="mb-6">
+          <div class="flex items-center justify-between">
+              <label
+                      for="URL_NORMALIZATION_ENABLED"
+                      class="font-semibold text-gray-700"
+              >启用智能路由映射</label
+              >
+              <div
+                      class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"
+              >
+                  <input
+                          type="checkbox"
+                          name="URL_NORMALIZATION_ENABLED"
+                          id="URL_NORMALIZATION_ENABLED"
+                          class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                  />
+                  <label
+                          for="URL_NORMALIZATION_ENABLED"
+                          class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                  ></label>
+              </div>
+          </div>
+          <small class="text-gray-500 mt-1 block">
+            自动客户端请求的url拼接为正确格式（仅保证正常聊天，出现问题请关闭）
+          </small>
+        </div>
         <!-- 最大失败次数 -->
         <div class="mb-6">
           <label

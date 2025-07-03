@@ -8,6 +8,7 @@ from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # from app.middleware.request_logging_middleware import RequestLoggingMiddleware
+from app.middleware.smart_routing_middleware import SmartRoutingMiddleware
 from app.core.constants import API_VERSION
 from app.core.security import verify_auth_token
 from app.log.logger import get_middleware_logger
@@ -52,6 +53,9 @@ def setup_middlewares(app: FastAPI) -> None:
     Args:
         app: FastAPI应用程序实例
     """
+    # 添加智能路由中间件（必须在认证中间件之前）
+    app.add_middleware(SmartRoutingMiddleware)
+
     # 添加认证中间件
     app.add_middleware(AuthMiddleware)
 
