@@ -44,12 +44,12 @@ class GenerationConfig(BaseModel):
 
 
 class SystemInstruction(BaseModel):
-    role: str = "system"
+    role: Optional[str] = "system"
     parts: Union[List[Dict[str, Any]], Dict[str, Any]]
 
 
 class GeminiContent(BaseModel):
-    role: str
+    role: Optional[str] = None
     parts: List[Dict[str, Any]]
 
 
