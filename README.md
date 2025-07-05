@@ -2,6 +2,12 @@
 
 # Gemini Balance - Gemini API Proxy and Load Balancer
 
+<p align="center">
+  <a href="https://trendshift.io/repositories/13692" target="_blank">
+    <img src="https://trendshift.io/api/badge/repositories/13692" alt="snailyp%2Fgemini-balance | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
+  </a>
+</p>
+
 > ⚠️ This project is licensed under the CC BY-NC 4.0 (Attribution-NonCommercial) license. Any form of commercial resale service is prohibited. See the LICENSE file for details.
 
 > I have never sold this service on any platform. If you encounter someone selling this service, they are definitely a reseller. Please be careful not to be deceived.
