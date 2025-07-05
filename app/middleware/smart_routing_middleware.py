@@ -67,9 +67,9 @@ class SmartRoutingMiddleware(BaseHTTPMiddleware):
             r"^/gemini/v1beta/models/[^/:]+:(generate|streamGenerate)Content$",  # Gemini带前缀
             r"^/v1beta/models$",  # Gemini模型列表
             r"^/gemini/v1beta/models$",  # Gemini带前缀的模型列表
-            r"^/v1/(chat/completions|models|embeddings|images/generations)$",  # v1格式
-            r"^/openai/v1/(chat/completions|models|embeddings|images/generations)$",  # OpenAI格式
-            r"^/hf/v1/(chat/completions|models|embeddings|images/generations)$",  # HF格式
+            r"^/v1/(chat/completions|models|embeddings|images/generations|audio/speech)$",  # v1格式
+            r"^/openai/v1/(chat/completions|models|embeddings|images/generations|audio/speech)$",  # OpenAI格式
+            r"^/hf/v1/(chat/completions|models|embeddings|images/generations|audio/speech)$",  # HF格式
             r"^/vertex-express/v1beta/models/[^/:]+:(generate|streamGenerate)Content$",  # Vertex Express Gemini格式
             r"^/vertex-express/v1beta/models$",  # Vertex Express模型列表
             r"^/vertex-express/v1/(chat/completions|models|embeddings|images/generations)$",  # Vertex Express OpenAI格式
@@ -146,6 +146,8 @@ class SmartRoutingMiddleware(BaseHTTPMiddleware):
                 return "/openai/v1/embeddings", {"type": "openai_embeddings"}
             elif "image" in path.lower():
                 return "/openai/v1/images/generations", {"type": "openai_images"}
+            elif "audio" in path.lower():
+                return "/openai/v1/audio/speech", {"type": "openai_audio"}
         elif method == "GET":
             if "model" in path.lower():
                 return "/openai/v1/models", {"type": "openai_models"}
@@ -161,6 +163,8 @@ class SmartRoutingMiddleware(BaseHTTPMiddleware):
                 return "/v1/embeddings", {"type": "v1_embeddings"}
             elif "image" in path.lower():
                 return "/v1/images/generations", {"type": "v1_images"}
+            elif "audio" in path.lower():
+                return "/v1/audio/speech", {"type": "v1_audio"}
         elif method == "GET":
             if "model" in path.lower():
                 return "/v1/models", {"type": "v1_models"}

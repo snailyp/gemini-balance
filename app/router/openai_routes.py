@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
 from app.config.config import settings
@@ -7,6 +7,7 @@ from app.domain.openai_models import (
     ChatRequest,
     EmbeddingRequest,
     ImageGenerationRequest,
+    TTSRequest,
 )
 from app.handler.retry_handler import RetryHandler
 from app.handler.error_handler import handle_route_errors
@@ -14,6 +15,7 @@ from app.log.logger import get_openai_logger
 from app.service.chat.openai_chat_service import OpenAIChatService
 from app.service.embedding.embedding_service import EmbeddingService
 from app.service.image.image_create_service import ImageCreateService
+from app.service.tts.tts_service import TTSService
 from app.service.key.key_manager import KeyManager, get_key_manager_instance
 from app.service.model.model_service import ModelService
 
@@ -24,6 +26,7 @@ security_service = SecurityService()
 model_service = ModelService()
 embedding_service = EmbeddingService()
 image_create_service = ImageCreateService()
+tts_service = TTSService()
 
 
 async def get_key_manager():
@@ -39,6 +42,11 @@ async def get_next_working_key_wrapper(
 async def get_openai_chat_service(key_manager: KeyManager = Depends(get_key_manager)):
     """获取OpenAI聊天服务实例"""
     return OpenAIChatService(settings.BASE_URL, key_manager)
+
+
+async def get_tts_service():
+    """获取TTS服务实例"""
+    return tts_service
 
 
 @router.get("/v1/models")
@@ -147,3 +155,21 @@ async def get_keys_list(
             },
             "total": len(keys_status["valid_keys"]) + len(keys_status["invalid_keys"]),
         }
+
+
+@router.post("/v1/audio/speech")
+@router.post("/hf/v1/audio/speech")
+async def text_to_speech(
+    request: TTSRequest,
+    _=Depends(security_service.verify_authorization),
+    api_key: str = Depends(get_next_working_key_wrapper),
+    tts_service: TTSService = Depends(get_tts_service),
+):
+    """处理 OpenAI TTS 请求。"""
+    operation_name = "text_to_speech"
+    async with handle_route_errors(logger, operation_name):
+        logger.info(f"Handling TTS request for model: {request.model}")
+        logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
+        logger.info(f"Using API key: {api_key}")
+        audio_data = await tts_service.create_tts(request, api_key)
+        return Response(content=audio_data, media_type="audio/wav")

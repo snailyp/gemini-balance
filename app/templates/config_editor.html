@@ -747,6 +747,13 @@ endblock %} {% block head_extra_styles %}
       </button>
       <button
         class="tab-btn px-5 py-2 rounded-full font-medium text-sm transition-all duration-200"
+        data-tab="tts"
+        style="background-color: #f8fafc !important; color: #64748b !important; border: 2px solid #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important; font-weight: 500 !important;"
+      >
+        TTS 配置
+      </button>
+      <button
+        class="tab-btn px-5 py-2 rounded-full font-medium text-sm transition-all duration-200"
         data-tab="image"
         style="background-color: #f8fafc !important; color: #64748b !important; border: 2px solid #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important; font-weight: 500 !important;"
       >
@@ -1370,10 +1377,96 @@ endblock %} {% block head_extra_styles %}
           </div>
         </div>
       </div>
-
-      <!-- 图像生成相关配置 -->
-      <div class="config-section" id="image-section">
+ 
+       <!-- TTS配置 -->
+      <div class="config-section" id="tts-section">
         <h2
+          class="text-xl font-bold mb-6 pb-3 border-b flex items-center gap-2 text-gray-800 border-violet-300 border-opacity-30"
+        >
+          <i class="fas fa-volume-up text-violet-400"></i> TTS 相关配置
+        </h2>
+
+        <!-- TTS 模型 -->
+        <div class="mb-6">
+          <label for="TTS_MODEL" class="block font-semibold mb-2 text-gray-700"
+            >TTS 模型</label
+          >
+          <select
+            id="TTS_MODEL"
+            name="TTS_MODEL"
+            class="w-full px-4 py-3 rounded-lg form-select-themed"
+          >
+            <option value="gemini-2.5-flash-preview-tts">gemini-2.5-flash-preview-tts</option>
+            <option value="gemini-2.5-pro-preview-tts">gemini-2.5-pro-preview-tts</option>
+          </select>
+          <small class="text-gray-500 mt-1 block">用于TTS的模型</small>
+        </div>
+
+        <!-- TTS 语音名称 -->
+        <div class="mb-6">
+          <label for="TTS_VOICE_NAME" class="block font-semibold mb-2 text-gray-700"
+            >TTS 语音名称</label
+          >
+          <select
+            id="TTS_VOICE_NAME"
+            name="TTS_VOICE_NAME"
+            class="w-full px-4 py-3 rounded-lg form-select-themed"
+          >
+            <option value="Zephyr">Zephyr (明亮)</option>
+            <option value="Puck">Puck (欢快)</option>
+            <option value="Charon">Charon (信息丰富)</option>
+            <option value="Kore">Kore (坚定)</option>
+            <option value="Fenrir">Fenrir (易激动)</option>
+            <option value="Leda">Leda (年轻)</option>
+            <option value="Orus">Orus (坚定)</option>
+            <option value="Aoede">Aoede (轻松)</option>
+            <option value="Callirhoe">Callirhoe (随和)</option>
+            <option value="Autonoe">Autonoe (明亮)</option>
+            <option value="Enceladus">Enceladus (呼吸感)</option>
+            <option value="Iapetus">Iapetus (清晰)</option>
+            <option value="Umbriel">Umbriel (随和)</option>
+            <option value="Algieba">Algieba (平滑)</option>
+            <option value="Despina">Despina (平滑)</option>
+            <option value="Erinome">Erinome (清晰)</option>
+            <option value="Algenib">Algenib (沙哑)</option>
+            <option value="Rasalgethi">Rasalgethi (信息丰富)</option>
+            <option value="Laomedeia">Laomedeia (欢快)</option>
+            <option value="Achernar">Achernar (轻柔)</option>
+            <option value="Alnilam">Alnilam (坚定)</option>
+            <option value="Schedar">Schedar (平稳)</option>
+            <option value="Gacrux">Gacrux (成熟)</option>
+            <option value="Pulcherrima">Pulcherrima (向前)</option>
+            <option value="Achird">Achird (友好)</option>
+            <option value="Zubenelgenubi">Zubenelgenubi (休闲)</option>
+            <option value="Vindemiatrix">Vindemiatrix (温柔)</option>
+            <option value="Sadachbia">Sadachbia (活泼)</option>
+            <option value="Sadaltager">Sadaltager (博学)</option>
+            <option value="Sulafat">Sulafat (温暖)</option>
+          </select>
+          <small class="text-gray-500 mt-1 block">TTS 的语音名称，控制风格、语调、口音和节奏</small>
+        </div>
+
+        <!-- TTS 语速 -->
+        <div class="mb-6">
+          <label for="TTS_SPEED" class="block font-semibold mb-2 text-gray-700"
+            >TTS 语速</label
+          >
+          <select
+            id="TTS_SPEED"
+            name="TTS_SPEED"
+            class="w-full px-4 py-3 rounded-lg form-select-themed"
+          >
+            <option value="slow">慢</option>
+            <option value="normal">正常</option>
+            <option value="fast">快</option>
+          </select>
+          <small class="text-gray-500 mt-1 block">选择 TTS 的语速</small>
+        </div>
+      </div>
+
+       <!-- 图像生成相关配置 -->
+       <div class="config-section" id="image-section">
+         <h2
           class="text-xl font-bold mb-6 pb-3 border-b flex items-center gap-2 text-gray-800 border-violet-300 border-opacity-30"
         >
           <i class="fas fa-image text-violet-400"></i> 图像生成配置
@@ -1511,12 +1604,12 @@ endblock %} {% block head_extra_styles %}
         </div>
       </div>
 
-      <!-- 流式输出优化器配置 -->
+      <!-- 流式输出优化配置 -->
       <div class="config-section" id="stream-section">
         <h2
           class="text-xl font-bold mb-6 pb-3 border-b flex items-center gap-2 text-gray-800 border-violet-300 border-opacity-30"
         >
-          <i class="fas fa-stream text-violet-400"></i> 流式输出优化器
+          <i class="fas fa-stream text-violet-400"></i> 流式输出相关配置
         </h2>
 
         <!-- 启用流式输出优化 -->

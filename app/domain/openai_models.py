@@ -33,3 +33,10 @@ class ImageGenerationRequest(BaseModel):
     quality: Optional[str] = None
     style: Optional[str] = None
     response_format: Optional[str] = "url"
+
+
+class TTSRequest(BaseModel):
+    model: str = "gemini-2.5-flash-preview-tts"
+    input: str
+    voice: str = "Kore"
+    response_format: Optional[str] = "wav"

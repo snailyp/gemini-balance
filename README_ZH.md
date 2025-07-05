@@ -178,6 +178,7 @@ app/
 | `SHOW_THINKING_PROCESS`      | 可选，是否显示模型思考过程                                     | `true`                                                |
 | `THINKING_MODELS`            | 可选，支持思考功能的模型列表                                   | `[]`                                                  |
 | `THINKING_BUDGET_MAP`        | 可选，思考功能预算映射 (模型名:预算值)                         | `{}`                                                  |
+| `URL_NORMALIZATION_ENABLED`  | 可选，是否启用智能路由映射功能                                 | `false`                                               |
 | `BASE_URL`                   | 可选，Gemini API 基础 URL，默认无需修改                        | `https://generativelanguage.googleapis.com/v1beta`    |
 | `MAX_FAILURES`               | 可选，允许单个key失败的次数                                    | `3`                                                   |
 | `MAX_RETRIES`                | 可选，API 请求失败时的最大重试次数                             | `3`                                                   |
@@ -191,6 +192,10 @@ app/
 | `AUTO_DELETE_REQUEST_LOGS_ENABLED`| 可选，是否开启自动删除请求日志                               | `false`                                               |
 | `AUTO_DELETE_REQUEST_LOGS_DAYS` | 可选，自动删除多少天前的请求日志 (例如 1, 7, 30)           | `30`                                                  |
 | `SAFETY_SETTINGS`            | 可选，安全设置 (JSON 字符串格式)，用于配置内容安全阈值。示例值可能需要根据实际模型支持情况调整。 | `[{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"}, {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"}, {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE"}]` |
+| **TTS 相关**                 |                                                          |                                                       |
+| `TTS_MODEL`                  | 可选，TTS 模型名称                                           | `gemini-2.5-flash-preview-tts`                        |
+| `TTS_VOICE_NAME`             | 可选，TTS 语音名称                                           | `Zephyr`                                              |
+| `TTS_SPEED`                  | 可选，TTS 语速                                               | `normal`                                              |
 | **图像生成相关**             |                                                          |                                                       |
 | `PAID_KEY`                   | 可选，付费版API Key，用于图片生成等高级功能                    | `your-paid-api-key`                                   |
 | `CREATE_IMAGE_MODEL`         | 可选，图片生成模型                                             | `imagen-3.0-generate-002`                             |
