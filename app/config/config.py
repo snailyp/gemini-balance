@@ -90,6 +90,7 @@ class Settings(BaseSettings):
     PICGO_API_KEY: str = ""
     CLOUDFLARE_IMGBED_URL: str = ""
     CLOUDFLARE_IMGBED_AUTH_CODE: str = ""
+    CLOUDFLARE_IMGBED_UPLOAD_FOLDER: str = ""
 
     # 流式输出优化器配置
     STREAM_OPTIMIZER_ENABLED: bool = False

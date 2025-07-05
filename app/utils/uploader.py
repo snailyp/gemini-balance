@@ -261,18 +261,20 @@ class PicGoUploader(ImageUploader):
 
 class CloudFlareImgBedUploader(ImageUploader):
     """CloudFlare图床上传器"""
-    
-    def __init__(self, auth_code: str, api_url: str):
+
+    def __init__(self, auth_code: str, api_url: str, upload_folder: str = ""):
         """
         初始化CloudFlare图床上传器
         
         Args:
             auth_code: 认证码
             api_url: 上传API地址
+            upload_folder: 上传文件夹路径（可选）
         """
         self.auth_code = auth_code
         self.api_url = api_url
-        
+        self.upload_folder = upload_folder
+
     def upload(self, file: bytes, filename: str) -> UploadResponse:
         """
         上传图片到CloudFlare图床
@@ -288,12 +290,16 @@ class CloudFlareImgBedUploader(ImageUploader):
             UploadError: 上传失败时抛出异常
         """
         try:
-            # 准备请求URL（添加认证码参数，如果存在）
+            # 准备请求URL参数
+            params = []
+            if self.upload_folder:
+                params.append(f"uploadFolder={self.upload_folder}")
             if self.auth_code:
-                request_url = f"{self.api_url}?authCode={self.auth_code}&uploadNameType=origin"
-            else:
-                request_url = f"{self.api_url}?uploadNameType=origin"
-            
+                params.append(f"authCode={self.auth_code}")
+            params.append("uploadNameType=origin")
+
+            request_url = f"{self.api_url}?{'&'.join(params)}"
+
             # 准备文件数据
             files = {
                 "file": (filename, file)
@@ -388,6 +394,7 @@ class ImageUploaderFactory:
         elif provider == "cloudflare_imgbed":
             return CloudFlareImgBedUploader(
                 credentials["auth_code"],
-                credentials["base_url"]
+                credentials["base_url"],
+                credentials.get("upload_folder", ""),
             )
         raise ValueError(f"Unknown provider: {provider}")

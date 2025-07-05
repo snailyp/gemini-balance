@@ -1602,6 +1602,23 @@ endblock %} {% block head_extra_styles %}
           />
           <small class="text-gray-500 mt-1 block">Cloudflare图床的认证码</small>
         </div>
+
+        <!-- Cloudflare上传文件夹 -->
+        <div class="mb-6 provider-config" data-provider="cloudflare_imgbed">
+          <label
+            for="CLOUDFLARE_IMGBED_UPLOAD_FOLDER"
+            class="block font-semibold mb-2 text-gray-700"
+            >Cloudflare上传文件夹</label
+          >
+          <input
+            type="text"
+            id="CLOUDFLARE_IMGBED_UPLOAD_FOLDER"
+            name="CLOUDFLARE_IMGBED_UPLOAD_FOLDER"
+            placeholder=""
+            class="w-full px-4 py-3 rounded-lg form-input-themed"
+          />
+          <small class="text-gray-500 mt-1 block">Cloudflare图床的上传文件夹路径（可选）</small>
+        </div>
       </div>
 
       <!-- 流式输出优化配置 -->
