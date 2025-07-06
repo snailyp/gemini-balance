@@ -18,3 +18,7 @@ databases
 python-dotenv
 apscheduler
 packaging
+redis
+aioredis
+pytest
+pytest-asyncio

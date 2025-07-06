@@ -10,10 +10,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 from app.config.config import settings
 from app.core.constants import GEMINI_2_FLASH_EXP_SAFETY_SETTINGS
-from app.database.services import (
-    add_error_log,
-    add_request_log,
-)
+from app.database.services import error_log_service, request_log_service
 from app.domain.openai_models import ChatRequest, ImageGenerationRequest
 from app.handler.message_converter import OpenAIMessageConverter
 from app.handler.response_handler import OpenAIResponseHandler
@@ -228,7 +225,7 @@ class OpenAIChatService:
             else:
                 status_code = 500
 
-            await add_error_log(
+            await error_log_service.add_log(
                 gemini_key=api_key,
                 model_name=model,
                 error_type="openai-chat-non-stream",
@@ -240,7 +237,7 @@ class OpenAIChatService:
         finally:
             end_time = time.perf_counter()
             latency_ms = int((end_time - start_time) * 1000)
-            await add_request_log(
+            await request_log_service.add_log(
                 model_name=model,
                 api_key=api_key,
                 is_success=is_success,
@@ -418,7 +415,7 @@ class OpenAIChatService:
                     else:
                         status_code = 500
 
-                await add_error_log(
+                await error_log_service.add_log(
                     gemini_key=current_attempt_key,
                     model_name=model,
                     error_type="openai-chat-stream",
@@ -454,7 +451,7 @@ class OpenAIChatService:
             finally:
                 end_time = time.perf_counter()
                 latency_ms = int((end_time - start_time) * 1000)
-                await add_request_log(
+                await request_log_service.add_log(
                     model_name=model,
                     api_key=current_attempt_key,
                     is_success=is_success,
@@ -531,7 +528,7 @@ class OpenAIChatService:
             error_log_msg = f"Stream image completion failed for model {model}: {e}"
             logger.error(error_log_msg)
             status_code = 500
-            await add_error_log(
+            await error_log_service.add_log(
                 gemini_key=api_key,
                 model_name=model,
                 error_type="openai-image-stream",
@@ -547,7 +544,7 @@ class OpenAIChatService:
             logger.info(
                 f"Stream image completion for model {model} took {latency_ms} ms. Success: {is_success}"
             )
-            await add_request_log(
+            await request_log_service.add_log(
                 model_name=model,
                 api_key=api_key,
                 is_success=is_success,
@@ -581,7 +578,7 @@ class OpenAIChatService:
             error_log_msg = f"Normal image completion failed for model {model}: {e}"
             logger.error(error_log_msg)
             status_code = 500
-            await add_error_log(
+            await error_log_service.add_log(
                 gemini_key=api_key,
                 model_name=model,
                 error_type="openai-image-non-stream",
@@ -596,7 +593,7 @@ class OpenAIChatService:
             logger.info(
                 f"Normal image completion for model {model} took {latency_ms} ms. Success: {is_success}"
             )
-            await add_request_log(
+            await request_log_service.add_log(
                 model_name=model,
                 api_key=api_key,
                 is_success=is_success,

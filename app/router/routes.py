@@ -11,6 +11,7 @@ from app.log.logger import get_routes_logger
 from app.router import error_log_routes, gemini_routes, openai_routes, config_routes, scheduler_routes, stats_routes, version_routes, openai_compatiable_routes, vertex_express_routes
 from app.service.key.key_manager import get_key_manager_instance
 from app.service.stats.stats_service import StatsService
+from app.database.services import api_key_service # Added import
 
 logger = get_routes_logger()
 
@@ -88,24 +89,37 @@ def setup_page_routes(app: FastAPI) -> None:
 
             key_manager = await get_key_manager_instance()
             keys_status = await key_manager.get_keys_by_status()
-            total_keys = len(keys_status["valid_keys"]) + len(keys_status["invalid_keys"])
-            valid_key_count = len(keys_status["valid_keys"])
-            invalid_key_count = len(keys_status["invalid_keys"])
+
+            total_keys = await api_key_service.get_total_keys_count()
+            valid_key_count = len(keys_status["full_token_keys"])
+            limited_key_count = len(keys_status["empty_token_keys"])
+            retired_key_count = len(keys_status["retired_keys"])
+            quarantine_key_count = len(keys_status["quarantine_keys"])
+            banned_key_count = len(keys_status["banned_keys"])
 
             stats_service = StatsService()
             api_stats = await stats_service.get_api_usage_stats()
             logger.info(f"API stats retrieved: {api_stats}")
 
-            logger.info(f"Keys status retrieved successfully. Total keys: {total_keys}")
+            logger.info(f"Keys status retrieved successfully. Total keys: {total_keys}, "
+                        f"Full token keys: {valid_key_count}, Empty token keys: {limited_key_count}, "
+                        f"Retired keys: {retired_key_count}, Quarantine keys: {quarantine_key_count}, "
+                        f"Banned keys: {banned_key_count}")
             return templates.TemplateResponse(
                 "keys_status.html",
                 {
                     "request": request,
-                    "valid_keys": keys_status["valid_keys"],
-                    "invalid_keys": keys_status["invalid_keys"],
+                    "full_token_keys": keys_status["full_token_keys"],
+                    "empty_token_keys": keys_status["empty_token_keys"],
+                    "retired_keys": keys_status["retired_keys"],
+                    "quarantine_keys": keys_status["quarantine_keys"],
+                    "banned_keys": keys_status["banned_keys"],
                     "total_keys": total_keys,
                     "valid_key_count": valid_key_count,
-                    "invalid_key_count": invalid_key_count,
+                    "limited_key_count": limited_key_count,
+                    "retired_key_count": retired_key_count,
+                    "quarantine_key_count": quarantine_key_count,
+                    "banned_key_count": banned_key_count,
                     "api_stats": api_stats,
                 },
             )

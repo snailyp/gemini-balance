@@ -76,6 +76,15 @@ class ServiceUnavailableError(APIError):
         )
 
 
+class DownstreamApiError(APIError):
+    """下游API错误"""
+
+    def __init__(self, detail: str = "Downstream API error", status_code: int = 500):
+        super().__init__(
+            status_code=status_code, detail=detail, error_code="downstream_api_error"
+        )
+
+
 def setup_exception_handlers(app: FastAPI) -> None:
     """
     设置应用程序的异常处理器

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database.connection import engine, Base
 from app.database.models import Settings
 from app.log.logger import get_database_logger
+from app.database.services import api_key_service
 
 logger = get_database_logger()
 
@@ -17,10 +18,14 @@ def create_tables():
     """
     创建数据库表
     """
+    logger.info("Attempting to create database tables...")
     try:
         # 创建所有表
         Base.metadata.create_all(engine)
-        logger.info("Database tables created successfully")
+        logger.info("Database tables created successfully.")
+    except Exception as e:
+        logger.error(f"Failed to create database tables: {str(e)}", exc_info=True)
+        raise
     except Exception as e:
         logger.error(f"Failed to create database tables: {str(e)}")
         raise
@@ -62,14 +67,14 @@ def import_env_to_settings():
         raise
 
 
-def initialize_database():
+async def initialize_database():
     """
     初始化数据库
     """
     try:
         # 创建表
         create_tables()
-        
+
         # 导入环境变量
         import_env_to_settings()
     except Exception as e:

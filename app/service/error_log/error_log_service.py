@@ -81,7 +81,7 @@ async def process_get_error_logs(
     处理错误日志的检索，支持分页和过滤。
     """
     try:
-        logs_data = await db_services.get_error_logs(
+        logs_data = await db_services.error_log_service.get_error_logs(
             limit=limit,
             offset=offset,
             key_search=key_search,
@@ -92,7 +92,7 @@ async def process_get_error_logs(
             sort_by=sort_by,
             sort_order=sort_order,
         )
-        total_count = await db_services.get_error_logs_count(
+        total_count = await db_services.error_log_service.get_error_logs_count(
             key_search=key_search,
             error_search=error_search,
             error_code_search=error_code_search,
@@ -111,7 +111,7 @@ async def process_get_error_log_details(log_id: int) -> Optional[Dict[str, Any]]
     如果未找到，则返回 None。
     """
     try:
-        log_details = await db_services.get_error_log_details(log_id=log_id)
+        log_details = await db_services.error_log_service.get_error_log_details(log_id=log_id)
         return log_details
     except Exception as e:
         logger.error(
@@ -129,7 +129,7 @@ async def process_delete_error_logs_by_ids(log_ids: List[int]) -> int:
     if not log_ids:
         return 0
     try:
-        deleted_count = await db_services.delete_error_logs_by_ids(log_ids)
+        deleted_count = await db_services.error_log_service.delete_error_logs_by_ids(log_ids)
         return deleted_count
     except Exception as e:
         logger.error(
@@ -145,7 +145,7 @@ async def process_delete_error_log_by_id(log_id: int) -> bool:
     如果删除成功（或找到日志并尝试删除），则返回 True，否则返回 False。
     """
     try:
-        success = await db_services.delete_error_log_by_id(log_id)
+        success = await db_services.error_log_service.delete_error_log_by_id(log_id)
         return success
     except Exception as e:
         logger.error(
@@ -165,7 +165,7 @@ async def process_delete_all_error_logs() -> int:
             await database.connect()
             logger.info("Database connection established for deleting all error logs.")
 
-        deleted_count = await db_services.delete_all_error_logs()
+        deleted_count = await db_services.error_log_service.delete_all_error_logs()
         logger.info(
             f"Successfully processed request to delete all error logs. Count: {deleted_count}"
         )

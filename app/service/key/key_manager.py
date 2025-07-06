@@ -1,463 +1,288 @@
 import asyncio
+import time
 from itertools import cycle
-from typing import Dict, Union
+from typing import Dict, Tuple, Union
 
 from app.config.config import settings
+from app.database.redis_conn import get_redis_pool
+from app.exception.exceptions import ServiceUnavailableError
 from app.log.logger import get_key_manager_logger
+from app.database.services import api_key_service
+from datetime import datetime, timezone
 
 logger = get_key_manager_logger()
 
+# New Redis keys for token bucket and RPD management
+FULL_TOKEN_KEYS = "gemini:full_token_keys"  # Set of keys with available RPM tokens
+EMPTY_TOKEN_KEYS = "gemini:empty_token_keys" # Sorted Set of keys with 0 RPM tokens, score is next refill time
+RETIRED_KEYS = "gemini:retired_keys"      # Set of keys that have hit their RPD limit for the day
+QUARANTINE_KEYS = "gemini:quarantine_keys" # Set of keys that failed too many times for non-rate-limit reasons
+
+def get_daily_quota_ttl() -> int:
+    """Calculates the TTL in seconds until midnight UTC."""
+    now = datetime.now(timezone.utc)
+    midnight = datetime.now(timezone.utc).replace(hour=23, minute=59, second=59, microsecond=999999)
+    return int((midnight - now).total_seconds())
+
 
 class KeyManager:
-    def __init__(self, api_keys: list, vertex_api_keys: list):
-        self.api_keys = api_keys
-        self.vertex_api_keys = vertex_api_keys
-        self.key_cycle = cycle(api_keys)
-        self.vertex_key_cycle = cycle(vertex_api_keys)
-        self.key_cycle_lock = asyncio.Lock()
+    def __init__(self):
+        self.vertex_api_keys = []
+        self.vertex_key_cycle = cycle(self.vertex_api_keys)
         self.vertex_key_cycle_lock = asyncio.Lock()
-        self.failure_count_lock = asyncio.Lock()
         self.vertex_failure_count_lock = asyncio.Lock()
-        self.key_failure_counts: Dict[str, int] = {key: 0 for key in api_keys}
-        self.vertex_key_failure_counts: Dict[str, int] = {
-            key: 0 for key in vertex_api_keys
-        }
+        self.vertex_key_failure_counts: Dict[str, int] = {}
         self.MAX_FAILURES = settings.MAX_FAILURES
         self.paid_key = settings.PAID_KEY
+        self.redis = None
 
-    async def get_paid_key(self) -> str:
-        return self.paid_key
+    async def initialize(self):
+        self.redis = await get_redis_pool()
+        
+        # Clean up old redis keys
+        await self.redis.delete("gemini_ready_keys", "gemini_cooldown_keys")
 
-    async def get_next_key(self) -> str:
-        """获取下一个API key"""
-        async with self.key_cycle_lock:
-            return next(self.key_cycle)
+        # Initialize Gemini Keys into the new system
+        all_gemini_keys = await api_key_service.get_all_keys('gemini')
+        active_gemini_keys = [key.key_value for key in all_gemini_keys if key.status == "active"]
+        
+        # Use a pipeline for efficiency
+        pipe = self.redis.pipeline()
+        pipe.delete(FULL_TOKEN_KEYS, EMPTY_TOKEN_KEYS, RETIRED_KEYS)
 
+        if active_gemini_keys:
+            pipe.sadd(FULL_TOKEN_KEYS, *active_gemini_keys)
+            # Initialize token buckets for all active keys
+            for key in active_gemini_keys:
+                rpm, _ = self._get_rate_limit_config(key, "default")
+                pipe.hset(f"key:{key}:bucket", mapping={
+                    "tokens": rpm,
+                    "last_refill": time.time()
+                })
+        
+        await pipe.execute()
+        logger.info(f"Initialized {len(active_gemini_keys)} active Gemini keys into the token bucket system.")
+
+        # Initialize Vertex Keys (in-memory) - Unchanged
+        all_vertex_keys = await api_key_service.get_all_keys('vertex')
+        self.vertex_api_keys = [key.key_value for key in all_vertex_keys if key.status == "active"]
+        self.vertex_key_failure_counts = {key.key_value: key.failure_count or 0 for key in all_vertex_keys}
+        self.vertex_key_cycle = cycle(self.vertex_api_keys) if self.vertex_api_keys else cycle([])
+
+    def _get_rate_limit_config(self, key: str, model: str) -> Tuple[int, int]:
+        """Gets the RPM and RPD for a key, following priority: Key-specific > Model-specific > Default."""
+        key_suffix = key[-8:]
+        if key_suffix in settings.KEY_RATE_LIMITS:
+            rpm, rpd = settings.KEY_RATE_LIMITS[key_suffix]
+            return rpm, rpd
+        if model in settings.MODEL_RATE_LIMITS:
+            rpm, rpd = settings.MODEL_RATE_LIMITS[model]
+            return rpm, rpd
+        return settings.DEFAULT_RPM, settings.DEFAULT_RPD
+
+    async def _refill_token_bucket(self, key: str, rpm: int):
+        """Refills the token bucket for a given key based on elapsed time."""
+        bucket_info = await self.redis.hgetall(f"key:{key}:bucket")
+        if not bucket_info:
+            # If bucket doesn't exist, initialize it
+            await self.redis.hset(f"key:{key}:bucket", mapping={"tokens": rpm, "last_refill": time.time()})
+            return rpm
+
+        tokens = float(bucket_info.get(b'tokens', rpm))
+        last_refill = float(bucket_info.get(b'last_refill', time.time()))
+        
+        now = time.time()
+        elapsed = now - last_refill
+        
+        # Rate of token generation per second
+        rate_per_second = rpm / 60.0
+        new_tokens = elapsed * rate_per_second
+        
+        current_tokens = min(tokens + new_tokens, rpm)
+        
+        await self.redis.hset(f"key:{key}:bucket", mapping={"tokens": current_tokens, "last_refill": now})
+        return current_tokens
+
+    async def get_key_with_token(self, model: str) -> str:
+        """Gets a key that has an available token and has not exceeded its daily quota."""
+        # First, try to get a key from the full bucket
+        key = await self.redis.spop(FULL_TOKEN_KEYS)
+        if not key:
+            # If no keys in full bucket, it means all keys are rate-limited.
+            # This is the primary indicator of high load.
+            raise ServiceUnavailableError("All API keys are currently rate-limited (RPM).")
+
+        key = key
+        rpm, rpd = self._get_rate_limit_config(key, model)
+
+        # 1. Check RPD limit
+        daily_count_key = f"key:{key}:daily_count"
+        current_daily_count = await self.redis.get(daily_count_key)
+        
+        if current_daily_count and int(current_daily_count) >= rpd:
+            logger.warning(f"Key ...{key[-4:]} has reached its RPD limit of {rpd}. Retiring for the day.")
+            await self.redis.sadd(RETIRED_KEYS, key)
+            # Try to get another key
+            return await self.get_key_with_token(model)
+
+        # 2. Refill and consume token from bucket
+        current_tokens = await self._refill_token_bucket(key, rpm)
+        
+        if current_tokens >= 1:
+            # Consume a token
+            await self.redis.hincrbyfloat(f"key:{key}:bucket", "tokens", -1)
+            
+            # Increment daily count
+            ttl = get_daily_quota_ttl()
+            await self.redis.incr(daily_count_key)
+            await self.redis.expire(daily_count_key, ttl)
+
+            # Put the key back into the appropriate bucket
+            if current_tokens - 1 >= 1:
+                await self.redis.sadd(FULL_TOKEN_KEYS, key)
+            else:
+                # No tokens left, move to empty bucket
+                next_refill_time = time.time() + (60.0 / rpm)
+                await self.redis.zadd(EMPTY_TOKEN_KEYS, {key: next_refill_time})
+            
+            return key
+        else:
+            # Not enough tokens even after refill, move to empty bucket and try again
+            next_refill_time = time.time() + (60.0 / rpm)
+            await self.redis.zadd(EMPTY_TOKEN_KEYS, {key: next_refill_time})
+            return await self.get_key_with_token(model)
+
+    async def handle_api_failure(self, api_key: str, status_code: int = None):
+        """Handles non-rate-limit related API failures."""
+        failure_count_key = f"key:{api_key}:failures"
+        current_failures = await self.redis.incr(failure_count_key)
+
+        if current_failures >= self.MAX_FAILURES:
+            logger.warning(f"Key ...{api_key[-4:]} has failed {current_failures} times. Moving to quarantine.")
+            # Move from all possible buckets to quarantine
+            async with self.redis.pipeline() as pipe:
+                pipe.srem(FULL_TOKEN_KEYS, api_key)
+                pipe.zrem(EMPTY_TOKEN_KEYS, api_key)
+                pipe.sadd(QUARANTINE_KEYS, api_key)
+                await pipe.execute()
+            await api_key_service.mark_key_as_limited(api_key)
+        else:
+            logger.warning(f"Key ...{api_key[-4:]} failed (non-rate-limit). Failure count: {current_failures}.")
+
+    async def get_keys_by_status(self) -> dict:
+        """Gets the status of all Gemini keys, including their daily request counts."""
+        full_keys_set = await self.redis.smembers(FULL_TOKEN_KEYS)
+        empty_keys_with_scores = await self.redis.zrange(EMPTY_TOKEN_KEYS, 0, -1, withscores=True)
+        retired_keys_set = await self.redis.smembers(RETIRED_KEYS)
+        quarantine_keys_set = await self.redis.smembers(QUARANTINE_KEYS)
+        banned_keys_from_db = await api_key_service.get_banned_keys('gemini')
+        banned_keys_set = {key.key_value for key in banned_keys_from_db}
+
+        all_keys = full_keys_set.union(
+            {k for k, v in empty_keys_with_scores},
+            retired_keys_set,
+            quarantine_keys_set,
+            banned_keys_set
+        )
+
+        # Fetch daily counts in a pipeline
+        pipe = self.redis.pipeline()
+        for key in all_keys:
+            pipe.get(f"key:{key}:daily_count")
+        daily_counts_raw = await pipe.execute()
+
+        daily_counts = {key: int(count) if count else 0 for key, count in zip(all_keys, daily_counts_raw)}
+
+        now = time.time()
+        
+        def format_key_list(keys):
+            return [{"key": k, "daily_count": daily_counts.get(k, 0)} for k in keys]
+
+        status_dict = {
+            "full_token_keys": format_key_list(full_keys_set),
+            "empty_token_keys": {
+                k: {"cooldown": v - now, "daily_count": daily_counts.get(k, 0)}
+                for k, v in empty_keys_with_scores
+            },
+            "retired_keys": format_key_list(retired_keys_set),
+            "quarantine_keys": format_key_list(quarantine_keys_set),
+            "banned_keys": format_key_list(banned_keys_set),
+        }
+        return status_dict
+
+    # --- Unchanged Vertex Methods ---
     async def get_next_vertex_key(self) -> str:
-        """获取下一个 Vertex API key"""
         async with self.vertex_key_cycle_lock:
+            if not self.vertex_api_keys:
+                raise ServiceUnavailableError("No active Vertex API keys available.")
             return next(self.vertex_key_cycle)
 
-    async def is_key_valid(self, key: str) -> bool:
-        """检查key是否有效"""
-        async with self.failure_count_lock:
-            return self.key_failure_counts[key] < self.MAX_FAILURES
-
-    async def is_vertex_key_valid(self, key: str) -> bool:
-        """检查 Vertex key 是否有效"""
-        async with self.vertex_failure_count_lock:
-            return self.vertex_key_failure_counts[key] < self.MAX_FAILURES
-
-    async def reset_failure_counts(self):
-        """重置所有key的失败计数"""
-        async with self.failure_count_lock:
-            for key in self.key_failure_counts:
-                self.key_failure_counts[key] = 0
-
-    async def reset_vertex_failure_counts(self):
-        """重置所有 Vertex key 的失败计数"""
-        async with self.vertex_failure_count_lock:
-            for key in self.vertex_key_failure_counts:
-                self.vertex_key_failure_counts[key] = 0
-
-    async def reset_key_failure_count(self, key: str) -> bool:
-        """重置指定key的失败计数"""
-        async with self.failure_count_lock:
-            if key in self.key_failure_counts:
-                self.key_failure_counts[key] = 0
-                logger.info(f"Reset failure count for key: {key}")
-                return True
-            logger.warning(
-                f"Attempt to reset failure count for non-existent key: {key}"
-            )
-            return False
-
-    async def reset_vertex_key_failure_count(self, key: str) -> bool:
-        """重置指定 Vertex key 的失败计数"""
-        async with self.vertex_failure_count_lock:
-            if key in self.vertex_key_failure_counts:
-                self.vertex_key_failure_counts[key] = 0
-                logger.info(f"Reset failure count for Vertex key: {key}")
-                return True
-            logger.warning(
-                f"Attempt to reset failure count for non-existent Vertex key: {key}"
-            )
-            return False
-
-    async def get_next_working_key(self) -> str:
-        """获取下一可用的API key"""
-        initial_key = await self.get_next_key()
-        current_key = initial_key
-
-        while True:
-            if await self.is_key_valid(current_key):
-                return current_key
-
-            current_key = await self.get_next_key()
-            if current_key == initial_key:
-                return current_key
-
-    async def get_next_working_vertex_key(self) -> str:
-        """获取下一可用的 Vertex API key"""
-        initial_key = await self.get_next_vertex_key()
-        current_key = initial_key
-
-        while True:
-            if await self.is_vertex_key_valid(current_key):
-                return current_key
-
-            current_key = await self.get_next_vertex_key()
-            if current_key == initial_key:
-                return current_key
-
-    async def handle_api_failure(self, api_key: str, retries: int) -> str:
-        """处理API调用失败"""
-        async with self.failure_count_lock:
-            self.key_failure_counts[api_key] += 1
-            if self.key_failure_counts[api_key] >= self.MAX_FAILURES:
-                logger.warning(
-                    f"API key {api_key} has failed {self.MAX_FAILURES} times"
-                )
-        if retries < settings.MAX_RETRIES:
-            return await self.get_next_working_key()
-        else:
-            return ""
-
     async def handle_vertex_api_failure(self, api_key: str, retries: int) -> str:
-        """处理 Vertex API 调用失败"""
         async with self.vertex_failure_count_lock:
             self.vertex_key_failure_counts[api_key] += 1
             if self.vertex_key_failure_counts[api_key] >= self.MAX_FAILURES:
-                logger.warning(
-                    f"Vertex API key {api_key} has failed {self.MAX_FAILURES} times"
-                )
+                logger.warning(f"Vertex API key {api_key} has failed {self.MAX_FAILURES} times")
 
-    def get_fail_count(self, key: str) -> int:
-        """获取指定密钥的失败次数"""
-        return self.key_failure_counts.get(key, 0)
+    # --- Other methods that might need adaptation or can be kept ---
+    async def get_paid_key(self) -> str:
+        return self.paid_key
+    
+    async def reset_key_failure_count(self, key: str) -> bool:
+        """Resets a key from quarantine or retired status."""
+        await api_key_service.reset_key_status_to_active(key)
+        
+        rpm, _ = self._get_rate_limit_config(key, "default")
+        async with self.redis.pipeline() as pipe:
+            pipe.srem(QUARANTINE_KEYS, key)
+            pipe.srem(RETIRED_KEYS, key)
+            pipe.zrem(EMPTY_TOKEN_KEYS, key)
+            pipe.delete(f"key:{key}:failures")
+            pipe.delete(f"key:{key}:daily_count")
+            pipe.hset(f"key:{key}:bucket", mapping={"tokens": rpm, "last_refill": time.time()})
+            pipe.sadd(FULL_TOKEN_KEYS, key)
+            await pipe.execute()
+        
+        logger.info(f"Key ...{key[-4:]} has been fully reset and moved to the full token bucket.")
+        return True
 
-    def get_vertex_fail_count(self, key: str) -> int:
-        """获取指定 Vertex 密钥的失败次数"""
-        return self.vertex_key_failure_counts.get(key, 0)
-
-    async def get_keys_by_status(self) -> dict:
-        """获取分类后的API key列表，包括失败次数"""
-        valid_keys = {}
-        invalid_keys = {}
-
-        async with self.failure_count_lock:
-            for key in self.api_keys:
-                fail_count = self.key_failure_counts[key]
-                if fail_count < self.MAX_FAILURES:
-                    valid_keys[key] = fail_count
-                else:
-                    invalid_keys[key] = fail_count
-
-        return {"valid_keys": valid_keys, "invalid_keys": invalid_keys}
-
-    async def get_vertex_keys_by_status(self) -> dict:
-        """获取分类后的 Vertex API key 列表，包括失败次数"""
-        valid_keys = {}
-        invalid_keys = {}
-
-        async with self.vertex_failure_count_lock:
-            for key in self.vertex_api_keys:
-                fail_count = self.vertex_key_failure_counts[key]
-                if fail_count < self.MAX_FAILURES:
-                    valid_keys[key] = fail_count
-                else:
-                    invalid_keys[key] = fail_count
-        return {"valid_keys": valid_keys, "invalid_keys": invalid_keys}
-
-    async def get_first_valid_key(self) -> str:
-        """获取第一个有效的API key"""
-        async with self.failure_count_lock:
-            for key in self.key_failure_counts:
-                if self.key_failure_counts[key] < self.MAX_FAILURES:
-                    return key
-        if self.api_keys:
-            return self.api_keys[0]
-        if not self.api_keys:
-            logger.warning(
-                "API key list is empty, cannot get first valid key.")
-            return ""
-        return self.api_keys[0]
-
-
+# --- Singleton Management ---
 _singleton_instance = None
 _singleton_lock = asyncio.Lock()
-_preserved_failure_counts: Union[Dict[str, int], None] = None
-_preserved_vertex_failure_counts: Union[Dict[str, int], None] = None
-_preserved_old_api_keys_for_reset: Union[list, None] = None
-_preserved_vertex_old_api_keys_for_reset: Union[list, None] = None
-_preserved_next_key_in_cycle: Union[str, None] = None
-_preserved_vertex_next_key_in_cycle: Union[str, None] = None
 
-
-async def get_key_manager_instance(
-    api_keys: list = None, vertex_api_keys: list = None
-) -> KeyManager:
-    """
-    获取 KeyManager 单例实例。
-
-    如果尚未创建实例，将使用提供的 api_keys,vertex_api_keys 初始化 KeyManager。
-    如果已创建实例，则忽略 api_keys 参数，返回现有单例。
-    如果在重置后调用，会尝试恢复之前的状态（失败计数、循环位置）。
-    """
-    global _singleton_instance, _preserved_failure_counts, _preserved_vertex_failure_counts, _preserved_old_api_keys_for_reset, _preserved_vertex_old_api_keys_for_reset, _preserved_next_key_in_cycle, _preserved_vertex_next_key_in_cycle
-
+async def get_key_manager_instance() -> KeyManager:
+    global _singleton_instance
     async with _singleton_lock:
         if _singleton_instance is None:
-            if api_keys is None:
-                raise ValueError(
-                    "API keys are required to initialize or re-initialize the KeyManager instance."
-                )
-            if vertex_api_keys is None:
-                raise ValueError(
-                    "Vertex API keys are required to initialize or re-initialize the KeyManager instance."
-                )
-
-            if not api_keys:
-                logger.warning(
-                    "Initializing KeyManager with an empty list of API keys."
-                )
-            if not vertex_api_keys:
-                logger.warning(
-                    "Initializing KeyManager with an empty list of Vertex API keys."
-                )
-
-            _singleton_instance = KeyManager(api_keys, vertex_api_keys)
-            logger.info(
-                f"KeyManager instance created/re-created with {len(api_keys)} API keys and {len(vertex_api_keys)} Vertex API keys."
-            )
-
-            # 1. 恢复失败计数
-            if _preserved_failure_counts:
-                current_failure_counts = {
-                    key: 0 for key in _singleton_instance.api_keys
-                }
-                for key, count in _preserved_failure_counts.items():
-                    if key in current_failure_counts:
-                        current_failure_counts[key] = count
-                _singleton_instance.key_failure_counts = current_failure_counts
-                logger.info("Inherited failure counts for applicable keys.")
-            _preserved_failure_counts = None
-
-            if _preserved_vertex_failure_counts:
-                current_vertex_failure_counts = {
-                    key: 0 for key in _singleton_instance.vertex_api_keys
-                }
-                for key, count in _preserved_vertex_failure_counts.items():
-                    if key in current_vertex_failure_counts:
-                        current_vertex_failure_counts[key] = count
-                _singleton_instance.vertex_key_failure_counts = (
-                    current_vertex_failure_counts
-                )
-                logger.info(
-                    "Inherited failure counts for applicable Vertex keys.")
-            _preserved_vertex_failure_counts = None
-
-            # 2. 调整 key_cycle 的起始点
-            start_key_for_new_cycle = None
-            if (
-                _preserved_old_api_keys_for_reset
-                and _preserved_next_key_in_cycle
-                and _singleton_instance.api_keys
-            ):
-                try:
-                    start_idx_in_old = _preserved_old_api_keys_for_reset.index(
-                        _preserved_next_key_in_cycle
-                    )
-
-                    for i in range(len(_preserved_old_api_keys_for_reset)):
-                        current_old_key_idx = (start_idx_in_old + i) % len(
-                            _preserved_old_api_keys_for_reset
-                        )
-                        key_candidate = _preserved_old_api_keys_for_reset[
-                            current_old_key_idx
-                        ]
-                        if key_candidate in _singleton_instance.api_keys:
-                            start_key_for_new_cycle = key_candidate
-                            break
-                except ValueError:
-                    logger.warning(
-                        f"Preserved next key '{_preserved_next_key_in_cycle}' not found in preserved old API keys. "
-                        "New cycle will start from the beginning of the new list."
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Error determining start key for new cycle from preserved state: {e}. "
-                        "New cycle will start from the beginning."
-                    )
-
-            if start_key_for_new_cycle and _singleton_instance.api_keys:
-                try:
-                    target_idx = _singleton_instance.api_keys.index(
-                        start_key_for_new_cycle
-                    )
-                    for _ in range(target_idx):
-                        next(_singleton_instance.key_cycle)
-                    logger.info(
-                        f"Key cycle in new instance advanced. Next call to get_next_key() will yield: {start_key_for_new_cycle}"
-                    )
-                except ValueError:
-                    logger.warning(
-                        f"Determined start key '{start_key_for_new_cycle}' not found in new API keys during cycle advancement. "
-                        "New cycle will start from the beginning."
-                    )
-                except StopIteration:
-                    logger.error(
-                        "StopIteration while advancing key cycle, implies empty new API key list previously missed."
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Error advancing new key cycle: {e}. Cycle will start from beginning."
-                    )
-            else:
-                if _singleton_instance.api_keys:
-                    logger.info(
-                        "New key cycle will start from the beginning of the new API key list (no specific start key determined or needed)."
-                    )
-                else:
-                    logger.info(
-                        "New key cycle not applicable as the new API key list is empty."
-                    )
-
-            # 清理所有保存的状态
-            _preserved_old_api_keys_for_reset = None
-            _preserved_next_key_in_cycle = None
-
-            # 3. 调整 vertex_key_cycle 的起始点
-            start_key_for_new_vertex_cycle = None
-            if (
-                _preserved_vertex_old_api_keys_for_reset
-                and _preserved_vertex_next_key_in_cycle
-                and _singleton_instance.vertex_api_keys
-            ):
-                try:
-                    start_idx_in_old = _preserved_vertex_old_api_keys_for_reset.index(
-                        _preserved_vertex_next_key_in_cycle
-                    )
-
-                    for i in range(len(_preserved_vertex_old_api_keys_for_reset)):
-                        current_old_key_idx = (start_idx_in_old + i) % len(
-                            _preserved_vertex_old_api_keys_for_reset
-                        )
-                        key_candidate = _preserved_vertex_old_api_keys_for_reset[
-                            current_old_key_idx
-                        ]
-                        if key_candidate in _singleton_instance.vertex_api_keys:
-                            start_key_for_new_vertex_cycle = key_candidate
-                            break
-                except ValueError:
-                    logger.warning(
-                        f"Preserved next key '{_preserved_vertex_next_key_in_cycle}' not found in preserved old Vertex API keys. "
-                        "New cycle will start from the beginning of the new list."
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Error determining start key for new Vertex key cycle from preserved state: {e}. "
-                        "New cycle will start from the beginning."
-                    )
-
-            if start_key_for_new_vertex_cycle and _singleton_instance.vertex_api_keys:
-                try:
-                    target_idx = _singleton_instance.vertex_api_keys.index(
-                        start_key_for_new_vertex_cycle
-                    )
-                    for _ in range(target_idx):
-                        next(_singleton_instance.vertex_key_cycle)
-                    logger.info(
-                        f"Vertex key cycle in new instance advanced. Next call to get_next_vertex_key() will yield: {start_key_for_new_vertex_cycle}"
-                    )
-                except ValueError:
-                    logger.warning(
-                        f"Determined start key '{start_key_for_new_vertex_cycle}' not found in new Vertex API keys during cycle advancement. "
-                        "New cycle will start from the beginning."
-                    )
-                except StopIteration:
-                    logger.error(
-                        "StopIteration while advancing Vertex key cycle, implies empty new Vertex API key list previously missed."
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Error advancing new Vertex key cycle: {e}. Cycle will start from beginning."
-                    )
-            else:
-                if _singleton_instance.vertex_api_keys:
-                    logger.info(
-                        "New Vertex key cycle will start from the beginning of the new Vertex API key list (no specific start key determined or needed)."
-                    )
-                else:
-                    logger.info(
-                        "New Vertex key cycle not applicable as the new Vertex API key list is empty."
-                    )
-
-            # 清理所有保存的状态
-            _preserved_vertex_old_api_keys_for_reset = None
-            _preserved_vertex_next_key_in_cycle = None
-
+            _singleton_instance = KeyManager()
+            await _singleton_instance.initialize()
         return _singleton_instance
 
-
 async def reset_key_manager_instance():
-    """
-    重置 KeyManager 单例实例。
-    将保存当前实例的状态（失败计数、旧 API keys、下一个 key 提示）
-    以供下一次 get_key_manager_instance 调用时恢复。
-    """
-    global _singleton_instance, _preserved_failure_counts, _preserved_vertex_failure_counts, _preserved_old_api_keys_for_reset, _preserved_vertex_old_api_keys_for_reset, _preserved_next_key_in_cycle, _preserved_vertex_next_key_in_cycle
+    global _singleton_instance
     async with _singleton_lock:
         if _singleton_instance:
-            # 1. 保存失败计数
-            _preserved_failure_counts = _singleton_instance.key_failure_counts.copy()
-            _preserved_vertex_failure_counts = _singleton_instance.vertex_key_failure_counts.copy()
-
-            # 2. 保存旧的 API keys 列表
-            _preserved_old_api_keys_for_reset = _singleton_instance.api_keys.copy()
-            _preserved_vertex_old_api_keys_for_reset = _singleton_instance.vertex_api_keys.copy()
-
-            # 3. 保存 key_cycle 的下一个 key 提示
-            try:
-                if _singleton_instance.api_keys:
-                    _preserved_next_key_in_cycle = (
-                        await _singleton_instance.get_next_key()
-                    )
-                else:
-                    _preserved_next_key_in_cycle = None
-            except StopIteration:
-                logger.warning(
-                    "Could not preserve next key hint: key cycle was empty or exhausted in old instance."
-                )
-                _preserved_next_key_in_cycle = None
-            except Exception as e:
-                logger.error(
-                    f"Error preserving next key hint during reset: {e}")
-                _preserved_next_key_in_cycle = None
-
-            # 4. 保存 vertex_key_cycle 的下一个 key 提示
-            try:
-                if _singleton_instance.vertex_api_keys:
-                    _preserved_vertex_next_key_in_cycle = (
-                        await _singleton_instance.get_next_vertex_key()
-                    )
-                else:
-                    _preserved_vertex_next_key_in_cycle = None
-            except StopIteration:
-                logger.warning(
-                    "Could not preserve next key hint: Vertex key cycle was empty or exhausted in old instance."
-                )
-                _preserved_vertex_next_key_in_cycle = None
-            except Exception as e:
-                logger.error(
-                    f"Error preserving next key hint during reset: {e}")
-                _preserved_vertex_next_key_in_cycle = None
-
             _singleton_instance = None
-            logger.info(
-                "KeyManager instance has been reset. State (failure counts, old keys, next key hint) preserved for next instantiation."
-            )
+            logger.info("KeyManager instance has been reset.")
         else:
-            logger.info(
-                "KeyManager instance was not set (or already reset), no reset action performed."
-            )
+            logger.info("KeyManager instance was not set, no reset action performed.")
+
+
+async def reset_retired_keys_daily():
+    """
+    Moves all keys from the retired set back to the full token bucket at the start of a new day (UTC).
+    """
+    redis = await get_redis_pool()
+    retired_keys = await redis.smembers(RETIRED_KEYS)
+    if not retired_keys:
+        logger.info("No retired keys to reset.")
+        return
+
+    async with redis.pipeline() as pipe:
+        pipe.sadd(FULL_TOKEN_KEYS, *retired_keys)
+        pipe.delete(RETIRED_KEYS)
+        # Also reset their daily request count
+        for key in retired_keys:
+            pipe.delete(f"key:{key}:daily_count")
+        await pipe.execute()
+    
+    logger.info(f"Reset {len(retired_keys)} retired keys and moved them to the full token bucket.")

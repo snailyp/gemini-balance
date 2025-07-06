@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.middleware.circuit_breaker import CircuitBreakerMiddleware
 # from app.middleware.request_logging_middleware import RequestLoggingMiddleware
 from app.core.constants import API_VERSION
 from app.core.security import verify_auth_token
@@ -52,6 +53,9 @@ def setup_middlewares(app: FastAPI) -> None:
     Args:
         app: FastAPI应用程序实例
     """
+    # 添加全局断路器中间件
+    app.add_middleware(CircuitBreakerMiddleware)
+    
     # 添加认证中间件
     app.add_middleware(AuthMiddleware)
 

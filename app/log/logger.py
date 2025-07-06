@@ -1,4 +1,5 @@
 import logging
+import os
 import platform
 import sys
 from typing import Dict, Optional
@@ -63,11 +64,8 @@ class Logger:
         :param name: logger名称
         :return: logger实例
         """
-        # 导入 settings 对象
-        from app.config.config import settings
-
-        # 从全局配置获取日志级别
-        log_level_str = settings.LOG_LEVEL.lower()
+        # 尝试从环境变量获取日志级别，如果未设置则默认为 'info'
+        log_level_str = os.getenv("LOG_LEVEL", "info").lower()
         level = LOG_LEVELS.get(log_level_str, logging.INFO)
 
         if name in Logger._loggers:

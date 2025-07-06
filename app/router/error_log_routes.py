@@ -3,7 +3,7 @@
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -117,7 +117,7 @@ class ErrorLogDetailResponse(BaseModel):
     gemini_key: Optional[str] = None
     error_type: Optional[str] = None
     error_log: Optional[str] = None
-    request_msg: Optional[str] = None
+    request_msg: Optional[Dict[str, Any]] = None
     model_name: Optional[str] = None
     request_time: Optional[datetime] = None
 

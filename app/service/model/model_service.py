@@ -10,7 +10,9 @@ logger = get_model_logger()
 
 class ModelService:
     async def get_gemini_models(self, api_key: str) -> Optional[Dict[str, Any]]:
-        api_client = GeminiApiClient(base_url=settings.BASE_URL)
+        logger.debug(f"Instantiating GeminiApiClient with settings.GEMINI_BASE_URL: {settings.GEMINI_BASE_URL}")
+        api_client = GeminiApiClient(base_urls=settings.GEMINI_BASE_URL, selection_strategy=settings.GEMINI_BASE_URL_SELECTION_STRATEGY)
+        logger.debug(f"GeminiApiClient initialized with base_urls: {settings.GEMINI_BASE_URL}, selection_strategy: {settings.GEMINI_BASE_URL_SELECTION_STRATEGY}")
         gemini_models = await api_client.get_models(api_key)
 
         if gemini_models is None:

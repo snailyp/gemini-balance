@@ -2,9 +2,13 @@
 应用程序配置模块
 """
 
+import logging
+from app.log.logger import LOG_LEVELS
+import asyncio
 import datetime
 import json
-from typing import Any, Dict, List, Type
+import time
+from typing import Any, Dict, List, Optional, Type
 
 from pydantic import ValidationError, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings
@@ -24,12 +28,15 @@ from app.core.constants import (
     DEFAULT_TIMEOUT,
     MAX_RETRIES,
 )
-from app.log.logger import Logger
+
 
 
 class Settings(BaseSettings):
+    # Redis 配置
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     # 数据库配置
-    DATABASE_TYPE: str = "mysql"  # sqlite 或 mysql
+    DATABASE_TYPE: str = "mysql"
     SQLITE_DATABASE: str = "default_db"
     MYSQL_HOST: str = ""
     MYSQL_PORT: int = 3306
@@ -52,9 +59,72 @@ class Settings(BaseSettings):
 
     # API相关配置
     API_KEYS: List[str]
+
+    @field_validator('API_KEYS', mode='before')
+    @classmethod
+    def parse_api_keys(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            try:
+                # Attempt to parse as JSON list
+                parsed = json.loads(v)
+                if isinstance(parsed, list) and all(isinstance(item, str) for item in parsed):
+                    return parsed
+            except json.JSONDecodeError:
+                pass  # Not a JSON string, proceed to treat as single key
+            # If not a JSON list, treat the whole string as a single key
+            return [v]
+        elif isinstance(v, list):
+            return v
+        return [] # Default to empty list if unexpected type
     ALLOWED_TOKENS: List[str]
     GEMINI_BASE_URL: List[str] = [f"https://generativelanguage.googleapis.com/{API_VERSION}"]
+
+    @field_validator('GEMINI_BASE_URL', mode='before')
+    @classmethod
+    def validate_gemini_base_url(cls, v: Any) -> List[str]:
+        logger = logging.getLogger(__name__)
+        default_url = f"https://generativelanguage.googleapis.com/{API_VERSION}"
+
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list) and all(isinstance(item, str) for item in parsed):
+                    v = parsed
+                else:
+                    logger.warning(f"GEMINI_BASE_URL string '{v}' is not a valid JSON list. Treating as single URL.")
+                    v = [v]
+            except json.JSONDecodeError:
+                logger.warning(f"GEMINI_BASE_URL string '{v}' is not JSON. Treating as single URL.")
+                v = [v]
+        elif not isinstance(v, list):
+            logger.warning(f"GEMINI_BASE_URL received unexpected type {type(v)}. Defaulting to standard URL.")
+            return [default_url]
+
+        # Ensure all URLs have a protocol
+        cleaned_urls = []
+        for url in v:
+            if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+                logger.warning(f"Invalid URL '{url}' found in GEMINI_BASE_URL. Replacing with default.")
+                cleaned_urls.append(default_url)
+            else:
+                cleaned_urls.append(url)
+        
+        if not cleaned_urls:
+            logger.warning("GEMINI_BASE_URL list is empty after cleaning. Defaulting to standard URL.")
+            return [default_url]
+
+        return cleaned_urls
     GEMINI_BASE_URL_SELECTION_STRATEGY: str = "round_robin"  # round_robin, random, consistency_hash_by_api_key
+
+    @field_validator('GEMINI_BASE_URL_SELECTION_STRATEGY', mode='after')
+    @classmethod
+    def validate_gemini_base_url_selection_strategy(cls, v: str) -> str:
+        valid_strategies = ["round_robin", "random", "consistency_hash_by_api_key"]
+        if v not in valid_strategies:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Invalid GEMINI_BASE_URL_SELECTION_STRATEGY '{v}' found. Defaulting to 'round_robin'.")
+            return "round_robin"
+        return v
     OPENAI_BASE_URL: List[str] = ["https://api.openai.com/v1"]
     OPENAI_BASE_URL_SELECTION_STRATEGY: str = "round_robin" # round_robin, random, consistency_hash_by_api_key
     AUTH_TOKEN: str = ""
@@ -62,10 +132,91 @@ class Settings(BaseSettings):
     TEST_MODEL: str = DEFAULT_MODEL
     TIME_OUT: int = DEFAULT_TIMEOUT
     MAX_RETRIES: int = MAX_RETRIES
+    RETRY_BASE_DELAY_SECONDS: int = 1 # 基础重试延迟（秒）
+    RETRY_MAX_DELAY_SECONDS: int = 3 # 最大重试延迟（秒）
+    GEMINI_RPM_LIMIT: int = 5
     PROXIES: List[str] = []
     PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY: bool = True  # 是否使用一致性哈希来选择代理
     VERTEX_API_KEYS: List[str] = []
     VERTEX_EXPRESS_BASE_URL: List[str] = ["https://aiplatform.googleapis.com/v1beta1/publishers/google"]
+
+    @field_validator('VERTEX_EXPRESS_BASE_URL', mode='before')
+    @classmethod
+    def parse_vertex_express_base_url(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list) and all(isinstance(item, str) for item in parsed):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+            if v == "":
+                return []
+            return [v]
+        elif isinstance(v, list):
+            return v
+        return []
+
+    @field_validator('VERTEX_EXPRESS_BASE_URL', mode='before')
+    @classmethod
+    def validate_vertex_express_base_url(cls, v: Any) -> List[str]:
+        logger = logging.getLogger(__name__)
+        default_url = "https://aiplatform.googleapis.com/v1beta1/publishers/google"
+
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list) and all(isinstance(item, str) for item in parsed):
+                    v = parsed
+                else:
+                    logger.warning(f"VERTEX_EXPRESS_BASE_URL string '{v}' is not a valid JSON list. Treating as single URL.")
+                    v = [v]
+            except json.JSONDecodeError:
+                logger.warning(f"VERTEX_EXPRESS_BASE_URL string '{v}' is not JSON. Treating as single URL.")
+                v = [v]
+        elif not isinstance(v, list):
+            logger.warning(f"VERTEX_EXPRESS_BASE_URL received unexpected type {type(v)}. Defaulting to standard URL.")
+            return [default_url]
+
+        # Ensure all URLs have a protocol
+        cleaned_urls = []
+        for url in v:
+            if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+                logger.warning(f"Invalid URL '{url}' found in VERTEX_EXPRESS_BASE_URL. Replacing with default.")
+                cleaned_urls.append(default_url)
+            else:
+                cleaned_urls.append(url)
+        
+        if not cleaned_urls:
+            logger.warning("VERTEX_EXPRESS_BASE_URL list is empty after cleaning. Defaulting to standard URL.")
+            return [default_url]
+
+        return cleaned_urls
+
+    @field_validator('VERTEX_EXPRESS_BASE_URL', mode='before')
+    @classmethod
+    def validate_vertex_express_base_url(cls, v: Any) -> List[str]:
+        logger = logging.getLogger(__name__)
+        default_url = "https://aiplatform.googleapis.com/v1beta1/publishers/google"
+
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list) and all(isinstance(item, str) for item in parsed):
+                    return parsed
+            except json.JSONDecodeError:
+                pass  # Not a JSON string, proceed to treat as single URL or empty list
+            
+            if v == "":
+                return []
+            else:
+                logger.warning(f"VERTEX_EXPRESS_BASE_URL string '{v}' is not a valid JSON list. Treating as single URL.")
+                return [v]
+        elif isinstance(v, list):
+            return v
+        
+        logger.warning(f"VERTEX_EXPRESS_BASE_URL received unexpected type {type(v)}. Defaulting to standard URL.")
+        return [default_url]
     VERTEX_EXPRESS_BASE_URL_SELECTION_STRATEGY: str = "round_robin" # round_robin, random, consistency_hash_by_api_key
  
     # 模型相关配置
@@ -101,14 +252,41 @@ class Settings(BaseSettings):
 
     # 调度器配置
     CHECK_INTERVAL_HOURS: int = 1  # 默认检查间隔为1小时
+    LIMITED_KEY_VERIFICATION_ENABLED: bool = True
+    LIMITED_KEY_VERIFICATION_MIN_INTERVAL_HOURS: int = 1
+    LIMITED_KEY_VERIFICATION_MAX_INTERVAL_HOURS: int = 2
     TIMEZONE: str = "Asia/Shanghai"  # 默认时区
+    INITIAL_COOLDOWN_SECONDS: int = 3600  # 初始冷却时间（秒）
+    REVALIDATION_INTERVAL_MINUTES: int = 1 # 重新验证工作器运行间隔（分钟）
+    MAX_REVALIDATIONS_PER_RUN: int = 20 # 每次重新验证工作器运行时检查的最大密钥数
+    IMMEDIATE_COOLDOWN_SECONDS: int = 60 # 任何失败后的即时冷却时间（秒）
+
+    # Global Circuit Breaker
+    GLOBAL_FAILURE_THRESHOLD: int = 50 # 在断路器跳闸前，一分钟内允许的全局5xx错误数
+    GLOBAL_COOLDOWN_SECONDS: int = 60 # 全局断路器跳闸后的冷却时间（秒）
+
+    # Rate Limiting
+    DEFAULT_RPM: int = 5
+    DEFAULT_RPD: int = 100
+    MODEL_RATE_LIMITS: Dict[str, List[int]] = {}
+    KEY_RATE_LIMITS: Dict[str, List[int]] = {}
+
+    @field_validator('MODEL_RATE_LIMITS', 'KEY_RATE_LIMITS', mode='before')
+    @classmethod
+    def parse_rate_limits(cls, v: Any) -> Dict[str, List[int]]:
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return {}
+        return v
 
     # github
     GITHUB_REPO_OWNER: str = "snailyp"
     GITHUB_REPO_NAME: str = "gemini-balance"
 
     # 日志配置
-    LOG_LEVEL: str = "INFO"
+    LOG_LEVEL: str = "DEBUG"
     AUTO_DELETE_ERROR_LOGS_ENABLED: bool = True
     AUTO_DELETE_ERROR_LOGS_DAYS: int = 7
     AUTO_DELETE_REQUEST_LOGS_ENABLED: bool = False
@@ -128,10 +306,11 @@ settings = Settings()
 
 def _parse_db_value(key: str, db_value: str, target_type: Type) -> Any:
     """尝试将数据库字符串值解析为目标 Python 类型"""
-    from app.log.logger import get_config_logger
-
-    logger = get_config_logger()
+    logger = logging.getLogger(__name__)
     try:
+        # Special handling for GEMINI_BASE_URL_SELECTION_STRATEGY
+        if key == "GEMINI_BASE_URL_SELECTION_STRATEGY":
+            return str(db_value)
         # 处理 List[str]
         if target_type == List[str]:
             try:
@@ -221,7 +400,10 @@ def _parse_db_value(key: str, db_value: str, target_type: Type) -> Any:
         # 处理 float
         elif target_type == float:
             return float(db_value)
-        # 默认为 str 或其他 pydantic 能直接处理的类型
+        # 处理 str
+        elif target_type == str:
+            return str(db_value)
+        # 默认为其他 pydantic 能直接处理的类型
         else:
             return db_value
     except (ValueError, TypeError, json.JSONDecodeError) as e:
@@ -238,9 +420,7 @@ async def sync_initial_settings():
     2. 将数据库设置合并到内存 settings (数据库优先)。
     3. 将最终的内存 settings 同步回数据库。
     """
-    from app.log.logger import get_config_logger
-
-    logger = get_config_logger()
+    logger = logging.getLogger(__name__)
     # 延迟导入以避免循环依赖和确保数据库连接已初始化
     from app.database.connection import database
     from app.database.models import Settings as SettingsModel
@@ -248,15 +428,7 @@ async def sync_initial_settings():
     global settings
     logger.info("Starting initial settings synchronization...")
 
-    if not database.is_connected:
-        try:
-            await database.connect()
-            logger.info("Database connection established for initial sync.")
-        except Exception as e:
-            logger.error(
-                f"Failed to connect to database for initial settings sync: {e}. Skipping sync."
-            )
-            return
+    
 
     try:
         # 1. 从数据库加载设置
@@ -294,6 +466,16 @@ async def sync_initial_settings():
                     try:
                         parsed_db_value = _parse_db_value(key, db_value, target_type)
                         memory_value = getattr(settings, key)
+
+                        # Special handling for GEMINI_BASE_URL to prioritize environment variable
+                        if key == "GEMINI_BASE_URL" and settings.BASE_URL:
+                            if parsed_db_value != [settings.BASE_URL]:
+                                setattr(settings, key, [settings.BASE_URL])
+                                logger.debug(
+                                    f"Prioritizing environment BASE_URL for GEMINI_BASE_URL. Updated to {[settings.BASE_URL]}."
+                                )
+                                updated_in_memory = True
+                            continue # Skip further processing for this key
 
                         # 比较解析后的值和内存中的值
                         # 注意：对于列表等复杂类型，直接比较可能不够健壮，但这里简化处理
@@ -346,6 +528,22 @@ async def sync_initial_settings():
                 logger.error(
                     f"Validation error after merging database settings: {e}. Settings might be inconsistent."
                 )
+
+        # 强制校验和修正 GEMINI_BASE_URL_SELECTION_STRATEGY
+        valid_strategies = ["round_robin", "random", "consistency_hash_by_api_key"]
+        if settings.GEMINI_BASE_URL_SELECTION_STRATEGY not in valid_strategies:
+            logger.warning(
+                f"Invalid GEMINI_BASE_URL_SELECTION_STRATEGY '{settings.GEMINI_BASE_URL_SELECTION_STRATEGY}' found. Forcing to 'round_robin'."
+            )
+            settings.GEMINI_BASE_URL_SELECTION_STRATEGY = "round_robin"
+
+        # 强制校验和修正 GEMINI_BASE_URL
+        default_gemini_base_url = f"https://generativelanguage.googleapis.com/{API_VERSION}"
+        if not settings.GEMINI_BASE_URL or not all(url.startswith(("http://", "https://")) for url in settings.GEMINI_BASE_URL):
+            logger.warning(
+                f"Invalid GEMINI_BASE_URL '{settings.GEMINI_BASE_URL}' found. Forcing to default: '{default_gemini_base_url}'."
+            )
+            settings.GEMINI_BASE_URL = [default_gemini_base_url]
 
         # 3. 将最终的内存 settings 同步回数据库
         final_memory_settings = settings.model_dump()
@@ -460,15 +658,14 @@ async def sync_initial_settings():
             )
 
         # 刷新日志等级
-        Logger.update_log_levels(final_memory_settings.get("LOG_LEVEL"))
+        log_level_str = final_memory_settings.get("LOG_LEVEL", "info").lower()
+        new_level = LOG_LEVELS.get(log_level_str, logging.INFO)
+        for logger_name, logger_instance in logging.root.manager.loggerDict.items():
+            if isinstance(logger_instance, logging.Logger):
+                logger_instance.setLevel(new_level)
 
     except Exception as e:
         logger.error(f"An unexpected error occurred during initial settings sync: {e}")
-    finally:
-        if database.is_connected:
-            try:
-                pass
-            except Exception as e:
-                logger.error(f"Error disconnecting database after initial sync: {e}")
+    
 
     logger.info("Initial settings synchronization finished.")

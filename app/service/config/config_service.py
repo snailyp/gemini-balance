@@ -14,7 +14,13 @@ from app.config.config import Settings as ConfigSettings
 from app.config.config import settings
 from app.database.connection import database
 from app.database.models import Settings
-from app.database.services import get_all_settings
+from app.database.services import settings_service
+from app.log.logger import get_config_routes_logger
+from app.service.key.key_manager import (
+    get_key_manager_instance,
+    reset_key_manager_instance,
+)
+from app.database.services import settings_service, api_key_service
 from app.log.logger import get_config_routes_logger
 from app.service.key.key_manager import (
     get_key_manager_instance,
@@ -39,8 +45,16 @@ class ConfigService:
                 setattr(settings, key, value)
                 logger.debug(f"Updated setting in memory: {key}")
 
+        # 重新验证 settings 对象以触发所有 field_validator
+        try:
+            settings.__init__(**settings.model_dump())
+            logger.info("Settings object re-validated after in-memory update.")
+        except Exception as e:
+            logger.error(f"Error re-validating settings after update: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail=f"配置验证失败: {str(e)}")
+
         # 获取现有设置
-        existing_settings_raw: List[Dict[str, Any]] = await get_all_settings()
+        existing_settings_raw: List[Dict[str, Any]] = await settings_service.get_all_settings()
         existing_settings_map: Dict[str, Dict[str, Any]] = {
             s["key"]: s for s in existing_settings_raw
         }
@@ -112,10 +126,13 @@ class ConfigService:
                 logger.error(f"Failed to bulk update/insert settings: {str(e)}")
                 raise
 
+        # 同步 API 密钥到 t_api_keys 表
+        await api_key_service.sync_keys_from_config()
+
         # 重置并重新初始化 KeyManager
         try:
             await reset_key_manager_instance()
-            await get_key_manager_instance(settings.API_KEYS, settings.VERTEX_API_KEYS)
+            await get_key_manager_instance()
             logger.info("KeyManager instance re-initialized with updated settings.")
         except Exception as e:
             logger.error(f"Failed to re-initialize KeyManager: {str(e)}")
@@ -213,7 +230,7 @@ class ConfigService:
         try:
             await reset_key_manager_instance()
             # 确保使用更新后的 settings 中的 API_KEYS
-            await get_key_manager_instance(settings.API_KEYS)
+            await get_key_manager_instance()
             logger.info("KeyManager instance re-initialized with reloaded settings.")
         except Exception as e:
             logger.error(f"Failed to re-initialize KeyManager during reset: {str(e)}")

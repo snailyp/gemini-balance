@@ -1,23 +1,42 @@
 volumes:
   mysql_data:
+  redis_data:
+
 services:
+  redis:
+    image: redis:alpine
+    container_name: gemini_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   gemini-balance:
-    image: ghcr.io/snailyp/gemini-balance:latest
+    build: .
     container_name: gemini-balance
     restart: unless-stopped
     ports:
-      - "5005:8000"
+      - "5005:6000"
     env_file:
       - .env
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import requests; exit(0) if requests.get('http://localhost:8000/health').status_code == 200 else exit(1)\""]
+      test: ["CMD-SHELL", "python -c \"import requests; exit(0) if requests.get('http://localhost:6000/health').status_code == 200 else exit(1)\""]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
   mysql:
     image: mysql:8
     container_name: gemini-balance-mysql
@@ -28,13 +47,26 @@ services:
       MYSQL_DATABASE: mysql_database
       MYSQL_USER: mysql_user
       MYSQL_PASSWORD: mysql_password
-    # ports:
-    #   - "3306:3306"
+    ports:
+      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    command: --max_allowed_packet=1073741824
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
-      interval: 10s # 每隔10秒检查一次
-      timeout: 5s   # 每次检查的超时时间为5秒
-      retries: 3    # 重试3次失败后标记为 unhealthy
-      start_period: 30s # 容器启动后等待30秒再开始第一次健康检查
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  tester:
+    build: .
+    container_name: gemini-balance-tester
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["pytest", "-v", "--tb=short", "tests/"]

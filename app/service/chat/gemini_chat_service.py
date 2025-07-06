@@ -1,13 +1,13 @@
-# app/services/chat_service.py
-
+import asyncio
 import json
-import re
 import datetime
 import time
 from typing import Any, AsyncGenerator, Dict, List
+
 from app.config.config import settings
 from app.core.constants import GEMINI_2_FLASH_EXP_SAFETY_SETTINGS
 from app.domain.gemini_models import GeminiRequest
+from app.exception.exceptions import DownstreamApiError, ServiceUnavailableError
 from app.handler.response_handler import GeminiResponseHandler
 from app.handler.stream_optimizer import gemini_optimizer
 from app.log.logger import get_gemini_logger
@@ -73,7 +73,7 @@ def _build_tools(model: str, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def _get_safety_settings(model: str) -> List[Dict[str, str]]:
     """获取安全设置"""
-    if model == "gemini-2.0-flash-exp":
+    if model == "gemini-2.0-flash-exp" or model == "gemini-2.5-pro":
         return GEMINI_2_FLASH_EXP_SAFETY_SETTINGS
     return settings.SAFETY_SETTINGS
 
@@ -116,13 +116,12 @@ def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
     return payload
 
 
-from app.config.config import settings
-
 class GeminiChatService:
     """聊天服务"""
 
-    def __init__(self, key_manager: KeyManager):
-        self.api_client = GeminiApiClient(settings.GEMINI_BASE_URL, settings.GEMINI_BASE_URL_SELECTION_STRATEGY, settings.TIME_OUT)
+    def __init__(self, base_url: List[str], key_manager: KeyManager):
+        self.base_url = base_url
+        self.api_client = GeminiApiClient(base_url, settings.GEMINI_BASE_URL_SELECTION_STRATEGY, settings.TIME_OUT)
         self.key_manager = key_manager
         self.response_handler = GeminiResponseHandler()
 
@@ -130,160 +129,151 @@ class GeminiChatService:
         """从响应中提取文本内容"""
         if not response.get("candidates"):
             return ""
-
         candidate = response["candidates"][0]
         content = candidate.get("content", {})
         parts = content.get("parts", [])
-
         if parts and "text" in parts[0]:
             return parts[0].get("text", "")
         return ""
 
-    def _create_char_response(
-        self, original_response: Dict[str, Any], text: str
-    ) -> Dict[str, Any]:
+    def _create_char_response(self, original_response: Dict[str, Any], text: str) -> Dict[str, Any]:
         """创建包含指定文本的响应"""
         response_copy = json.loads(json.dumps(original_response))
-        if response_copy.get("candidates") and response_copy["candidates"][0].get(
-            "content", {}
-        ).get("parts"):
+        if response_copy.get("candidates") and response_copy["candidates"][0].get("content", {}).get("parts"):
             response_copy["candidates"][0]["content"]["parts"][0]["text"] = text
         return response_copy
 
-    async def generate_content(
-        self, model: str, request: GeminiRequest, api_key: str
-    ) -> Dict[str, Any]:
+    async def generate_content(self, model: str, request: GeminiRequest) -> Dict[str, Any]:
         """生成内容"""
         payload = _build_payload(model, request)
-        start_time = time.perf_counter()
-        request_datetime = datetime.datetime.now()
-        is_success = False
-        status_code = None
-        response = None
+        last_exception = None
 
-        try:
-            response = await self.api_client.generate_content(payload, model, api_key)
-            is_success = True
-            status_code = 200
-            return self.response_handler.handle_response(response, model, stream=False)
-        except Exception as e:
-            is_success = False
-            error_log_msg = str(e)
-            logger.error(f"Normal API call failed with error: {error_log_msg}")
-            match = re.search(r"status code (\d+)", error_log_msg)
-            if match:
-                status_code = int(match.group(1))
-            else:
-                status_code = 500
-
-            await error_log_service.add_log(
-                gemini_key=api_key,
-                model_name=model,
-                error_type="gemini-chat-non-stream",
-                error_log=error_log_msg,
-                error_code=status_code,
-                request_msg=payload
-            )
-            raise e
-        finally:
-            end_time = time.perf_counter()
-            latency_ms = int((end_time - start_time) * 1000)
-            await request_log_service.add_log(
-                model_name=model,
-                api_key=api_key,
-                is_success=is_success,
-                status_code=status_code,
-                latency_ms=latency_ms,
-                request_time=request_datetime
-            )
-
-    async def stream_generate_content(
-        self, model: str, request: GeminiRequest, api_key: str
-    ) -> AsyncGenerator[str, None]:
-        """流式生成内容"""
-        retries = 0
-        max_retries = settings.MAX_RETRIES
-        payload = _build_payload(model, request)
-        is_success = False
-        status_code = None
-        final_api_key = api_key
-
-        while retries < max_retries:
-            request_datetime = datetime.datetime.now()
-            start_time = time.perf_counter()
-            current_attempt_key = api_key
-            final_api_key = current_attempt_key
+        for attempt in range(settings.MAX_RETRIES):
+            current_api_key = None
             try:
-                async for line in self.api_client.stream_generate_content(
-                    payload, model, current_attempt_key
-                ):
-                    # print(line)
+                current_api_key = await self.key_manager.get_key_with_token(model)
+                
+                request_datetime = datetime.datetime.now()
+                start_time = time.perf_counter()
+                
+                response = await self.api_client.generate_content(payload, model, current_api_key)
+                
+                latency_ms = int((time.perf_counter() - start_time) * 1000)
+                await request_log_service.add_log(
+                    model_name=model, api_key=current_api_key, is_success=True,
+                    status_code=200, latency_ms=latency_ms, request_time=request_datetime
+                )
+                return self.response_handler.handle_response(response, model, stream=False)
+
+            except DownstreamApiError as e:
+                last_exception = e
+                latency_ms = int((time.perf_counter() - start_time) * 1000)
+                logger.error(f"Attempt {attempt + 1}/{settings.MAX_RETRIES} with key ...{current_api_key[-4:]} failed with status code {e.status_code}: {e.detail}")
+
+                await error_log_service.add_log(
+                    gemini_key=current_api_key, model_name=model, error_type="gemini-chat-non-stream",
+                    error_log=e.detail, error_code=e.status_code, request_msg=payload
+                )
+                await request_log_service.add_log(
+                    model_name=model, api_key=current_api_key, is_success=False,
+                    status_code=e.status_code, latency_ms=latency_ms, request_time=request_datetime
+                )
+
+                if 400 <= e.status_code < 500 and e.status_code != 429:
+                    # Client-side error (e.g., bad request). Retrying won't help.
+                    raise e
+                
+                # For 5xx errors or 429 (though 429 should be rare now), penalize and retry
+                await self.key_manager.handle_api_failure(current_api_key, status_code=e.status_code)
+                logger.warning("Trying next available key...")
+
+            except ServiceUnavailableError as e:
+                # Raised by get_key_with_token if no keys are available
+                logger.error("No available API keys for the request.")
+                raise e from last_exception
+
+        logger.error("All retry attempts failed.")
+        raise ServiceUnavailableError("All retry attempts failed to process the request.") from last_exception
+
+    async def stream_generate_content(self, model: str, request: GeminiRequest) -> AsyncGenerator[str, None]:
+        """流式生成内容"""
+        payload = _build_payload(model, request)
+        last_exception = None
+        
+        for attempt in range(settings.MAX_RETRIES):
+            current_api_key = None
+            try:
+                current_api_key = await self.key_manager.get_key_with_token(model)
+                
+                request_datetime = datetime.datetime.now()
+                start_time = time.perf_counter()
+                is_success = False
+                status_code = None
+
+                async for line in self.api_client.stream_generate_content(payload, model, current_api_key):
                     if line.startswith("data:"):
                         line = line[6:]
-                        response_data = self.response_handler.handle_response(
-                            json.loads(line), model, stream=True
-                        )
+                    
+                    json_objects = []
+                    decoder = json.JSONDecoder()
+                    idx = 0
+                    while idx < len(line):
+                        try:
+                            obj, end = decoder.raw_decode(line[idx:])
+                            json_objects.append(obj)
+                            idx += end
+                            while idx < len(line) and line[idx].isspace():
+                                idx += 1
+                        except json.JSONDecodeError:
+                            logger.warning(f"Non-JSON data in stream: {line[idx:]}")
+                            break
+                    
+                    for response_data in json_objects:
+                        response_data = self.response_handler.handle_response(response_data, model, stream=True)
                         text = self._extract_text_from_response(response_data)
-                        # 如果有文本内容，且开启了流式输出优化器，则使用流式输出优化器处理
+                        
                         if text and settings.STREAM_OPTIMIZER_ENABLED:
-                            # 使用流式输出优化器处理文本输出
-                            async for (
-                                optimized_chunk
-                            ) in gemini_optimizer.optimize_stream_output(
+                            async for optimized_chunk in gemini_optimizer.optimize_stream_output(
                                 text,
                                 lambda t: self._create_char_response(response_data, t),
                                 lambda c: "data: " + json.dumps(c) + "\n\n",
                             ):
                                 yield optimized_chunk
                         else:
-                            # 如果没有文本内容（如工具调用等），整块输出
                             yield "data: " + json.dumps(response_data) + "\n\n"
-                logger.info("Streaming completed successfully")
+                
                 is_success = True
                 status_code = 200
-                break
-            except Exception as e:
-                retries += 1
-                is_success = False
-                error_log_msg = str(e)
-                logger.warning(
-                    f"Streaming API call failed with error: {error_log_msg}. Attempt {retries} of {max_retries}"
-                )
-                match = re.search(r"status code (\d+)", error_log_msg)
-                if match:
-                    status_code = int(match.group(1))
-                else:
-                    status_code = 500
-
-                await error_log_service.add_log(
-                    gemini_key=current_attempt_key,
-                    model_name=model,
-                    error_type="gemini-chat-stream",
-                    error_log=error_log_msg,
-                    error_code=status_code,
-                    request_msg=payload
-                )
-
-                api_key = await self.key_manager.handle_api_failure(current_attempt_key, retries)
-                if api_key:
-                    logger.info(f"Switched to new API key: {api_key}")
-                else:
-                    logger.error(f"No valid API key available after {retries} retries.")
-                    break
-
-                if retries >= max_retries:
-                    logger.error(
-                        f"Max retries ({max_retries}) reached for streaming."
-                    )
-                    break
-            finally:
-                end_time = time.perf_counter()
-                latency_ms = int((end_time - start_time) * 1000)
+                latency_ms = int((time.perf_counter() - start_time) * 1000)
                 await request_log_service.add_log(
-                    model_name=model,
-                    api_key=final_api_key,
-                    is_success=is_success,
-                    status_code=status_code,
-                    latency_ms=latency_ms,
-                    request_time=request_datetime
+                    model_name=model, api_key=current_api_key, is_success=is_success,
+                    status_code=status_code, latency_ms=latency_ms, request_time=request_datetime
                 )
+                return # Successful stream, exit generator
+
+            except DownstreamApiError as e:
+                last_exception = e
+                latency_ms = int((time.perf_counter() - start_time) * 1000)
+                logger.warning(f"Streaming API call failed on attempt {attempt + 1}/{settings.MAX_RETRIES} with key ...{current_api_key[-4:]}: {e.detail}")
+                
+                await error_log_service.add_log(
+                    gemini_key=current_api_key, model_name=model, error_type="gemini-chat-stream",
+                    error_log=e.detail, error_code=e.status_code, request_msg=payload
+                )
+                await request_log_service.add_log(
+                    model_name=model, api_key=current_api_key, is_success=False,
+                    status_code=e.status_code, latency_ms=latency_ms, request_time=request_datetime
+                )
+
+                if 400 <= e.status_code < 500 and e.status_code != 429:
+                    raise e
+
+                await self.key_manager.handle_api_failure(current_api_key, status_code=e.status_code)
+                logger.info("Trying next available key for stream...")
+
+            except ServiceUnavailableError as e:
+                logger.error("No available API keys for the streaming request.")
+                raise e from last_exception
+        
+        logger.error("All retry attempts failed for the streaming request.")
+        raise ServiceUnavailableError("All available keys failed to process the streaming request.") from last_exception

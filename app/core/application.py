@@ -14,6 +14,7 @@ from app.middleware.middleware import setup_middlewares
 from app.router.routes import setup_routers
 from app.scheduler.scheduled_tasks import start_scheduler, stop_scheduler
 from app.service.key.key_manager import get_key_manager_instance
+from app.database.services import api_key_service
 from app.service.update.update_service import check_for_updates
 from app.utils.helpers import get_current_version
 
@@ -39,11 +40,13 @@ def update_template_globals(app: FastAPI, update_info: dict):
 # --- Helper functions for lifespan ---
 async def _setup_database_and_config(app_settings):
     """Initializes database, syncs settings, and initializes KeyManager."""
-    initialize_database()
-    logger.info("Database initialized successfully")
     await connect_to_db()
+    logger.info("Database connected successfully")
+    await initialize_database()
+    logger.info("Database initialized successfully")
+    logger.info(f"API_KEYS from settings: {app_settings.API_KEYS}")
     await sync_initial_settings()
-    await get_key_manager_instance(app_settings.API_KEYS, app_settings.VERTEX_API_KEYS)
+    await get_key_manager_instance()
     logger.info("Database, config sync, and KeyManager initialized successfully")
 
 

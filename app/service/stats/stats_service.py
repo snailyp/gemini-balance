@@ -8,6 +8,7 @@ from sqlalchemy import and_, case, func, or_, select
 from app.database.connection import database
 from app.database.models import RequestLog
 from app.log.logger import get_stats_logger
+from app.database.services import api_key_service
 
 logger = get_stats_logger()
 
@@ -48,13 +49,15 @@ class StatsService:
                 ).label("failure"),
             ).where(RequestLog.request_time >= cutoff_time)
             result = await database.fetch_one(query)
-            if result:
+            if result and result["total"] > 0:
+                success_rate = (result["success"] or 0) / result["total"] * 100
                 return {
-                    "total": result["total"] or 0,
+                    "total": result["total"],
                     "success": result["success"] or 0,
                     "failure": result["failure"] or 0,
+                    "success_rate": round(success_rate, 2),
                 }
-            return {"total": 0, "success": 0, "failure": 0}
+            return {"total": 0, "success": 0, "failure": 0, "success_rate": 0}
         except Exception as e:
             logger.error(f"Failed to get calls in last {seconds} seconds: {e}")
             return {"total": 0, "success": 0, "failure": 0}
@@ -103,13 +106,15 @@ class StatsService:
                 ).label("failure"),
             ).where(RequestLog.request_time >= start_of_month)
             result = await database.fetch_one(query)
-            if result:
+            if result and result["total"] > 0:
+                success_rate = (result["success"] or 0) / result["total"] * 100
                 return {
-                    "total": result["total"] or 0,
+                    "total": result["total"],
                     "success": result["success"] or 0,
                     "failure": result["failure"] or 0,
+                    "success_rate": round(success_rate, 2),
                 }
-            return {"total": 0, "success": 0, "failure": 0}
+            return {"total": 0, "success": 0, "failure": 0, "success_rate": 0}
         except Exception as e:
             logger.error(f"Failed to get calls in current month: {e}")
             return {"total": 0, "success": 0, "failure": 0}
@@ -253,3 +258,12 @@ class StatsService:
                 exc_info=True,
             )
             raise
+
+    async def get_banned_key_stats(self) -> list[dict]:
+        """获取每日被封禁key的统计数据"""
+        try:
+            stats = await api_key_service.get_daily_banned_key_stats()
+            return [{"date": stat['date'].isoformat(), "count": stat['count']} for stat in stats]
+        except Exception as e:
+            logger.error(f"Failed to get banned key stats: {e}")
+            return []
