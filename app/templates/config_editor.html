@@ -1081,6 +1081,19 @@ endblock %} {% block head_extra_styles %}
           >开启后，对于每一个API_KEY将根据算法从代理列表中选取同一个代理IP，防止一个API_KEY同时被多个IP访问，也同时防止了一个IP访问了过多的API_KEY。</small
           >
         </div>
+    <!-- 429错误冷却时间 -->
+    <div class="mb-6">
+      <label for="COOLDOWN_DURATIONS_MINUTES" class="block font-semibold mb-2 text-gray-700">429错误冷却时间（分钟）</label>
+      <div class="array-container" id="COOLDOWN_DURATIONS_MINUTES_container">
+        <!-- 冷却时间项将在这里动态添加 -->
+      </div>
+      <div class="flex justify-end">
+        <button type="button" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2" onclick="addArrayItem('COOLDOWN_DURATIONS_MINUTES')">
+          <i class="fas fa-plus"></i> 添加冷却等级
+        </button>
+      </div>
+      <small class="text-gray-500 mt-1 block">设置因429错误触发的逐级冷却时长（单位：分钟）。例如：30, 60, 120, 240。</small>
+    </div>
       </div>
 
       <!-- 模型相关配置 -->

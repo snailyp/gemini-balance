@@ -2,6 +2,9 @@
 # Created by https://www.toptal.com/developers/gitignore/api/windows,visualstudiocode,circuitpython,python,pythonvanilla
 # Edit at https://www.toptal.com/developers/gitignore?templates=windows,visualstudiocode,circuitpython,python,pythonvanilla
 
+## AI CODE ##
+memory-bank/
+
 ### CircuitPython ###
 .Trashes
 .metadata_never_index
@@ -259,3 +262,6 @@ $RECYCLE.BIN/
 
 tests/
 default_db
+
+# 忽略本地docker-compose配置文件
+docker-compose-[A-Z0-9]*.yml

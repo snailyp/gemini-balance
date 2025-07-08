@@ -315,6 +315,10 @@ class GeminiChatService:
                 logger.warning(
                     f"Streaming API call failed with error: {error_log_msg}. Attempt {retries} of {max_retries}"
                 )
+                
+                # 检查是否是429错误
+                is_429_error = "status code 429" in error_log_msg
+                
                 match = re.search(r"status code (\d+)", error_log_msg)
                 if match:
                     status_code = int(match.group(1))
@@ -330,7 +334,13 @@ class GeminiChatService:
                     request_msg=payload
                 )
 
-                api_key = await self.key_manager.handle_api_failure(current_attempt_key, retries)
+                # 根据错误类型选择不同的处理方式
+                if is_429_error:
+                    logger.info(f"Handling 429 error for key: {current_attempt_key}")
+                    api_key = await self.key_manager.handle_429_failure(current_attempt_key, retries)
+                else:
+                    api_key = await self.key_manager.handle_api_failure(current_attempt_key, retries)
+
                 if api_key:
                     logger.info(f"Switched to new API key: {api_key}")
                 else:

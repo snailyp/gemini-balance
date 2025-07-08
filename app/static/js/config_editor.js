@@ -697,6 +697,12 @@ async function initConfig() {
     }
     // --- 结束：处理 SAFETY_SETTINGS 默认值 ---
 
+    // --- 新增：处理 COOLDOWN_DURATIONS_MINUTES 默认值 ---
+    if (!config.COOLDOWN_DURATIONS_MINUTES || !Array.isArray(config.COOLDOWN_DURATIONS_MINUTES)) {
+      config.COOLDOWN_DURATIONS_MINUTES = [30, 60, 120, 240];
+    }
+    // --- 结束：处理 COOLDOWN_DURATIONS_MINUTES 默认值 ---
+
     // --- 新增：处理自动删除错误日志配置的默认值 ---
     if (typeof config.AUTO_DELETE_ERROR_LOGS_ENABLED === "undefined") {
       config.AUTO_DELETE_ERROR_LOGS_ENABLED = false;
@@ -1603,7 +1609,7 @@ function collectFormData() {
   arrayContainers.forEach((container) => {
     const key = container.id.replace("_container", "");
     const arrayInputs = container.querySelectorAll(`.${ARRAY_INPUT_CLASS}`);
-    formData[key] = Array.from(arrayInputs)
+    let values = Array.from(arrayInputs)
       .map((input) => {
         if (
           input.classList.contains(SENSITIVE_INPUT_CLASS) &&
@@ -1616,6 +1622,13 @@ function collectFormData() {
       .filter(
         (value) => value && value.trim() !== "" && value !== MASKED_VALUE
       ); // Ensure MASKED_VALUE is also filtered if not handled
+
+    // 在这里添加类型转换
+    if (key === 'COOLDOWN_DURATIONS_MINUTES') {
+      values = values.map(v => parseInt(v, 10)).filter(n => !isNaN(n));
+    }
+    
+    formData[key] = values;
   });
 
   const budgetMapContainer = document.getElementById(

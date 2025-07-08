@@ -1,6 +1,9 @@
 import asyncio
 from itertools import cycle
-from typing import Dict, Union
+import time
+from typing import Dict, Union, Optional
+
+from app.service.key.cooldown_manager import CooldownManager
 
 from app.config.config import settings
 from app.log.logger import get_key_manager_logger
@@ -24,6 +27,7 @@ class KeyManager:
         }
         self.MAX_FAILURES = settings.MAX_FAILURES
         self.paid_key = settings.PAID_KEY
+        self.cooldown_manager = CooldownManager()
 
     async def get_paid_key(self) -> str:
         return self.paid_key
@@ -85,17 +89,28 @@ class KeyManager:
             return False
 
     async def get_next_working_key(self) -> str:
-        """获取下一可用的API key"""
+        """
+        获取下一个可用的API key。
+        一个可用的key必须同时满足：
+        1. 未达到最大失败次数。
+        2. 当前不处于冷却状态。
+        """
         initial_key = await self.get_next_key()
         current_key = initial_key
+        
+        # 循环最多len(self.api_keys)次，以避免在所有key都无效时无限循环
+        for _ in range(len(self.api_keys)):
+            is_valid = await self.is_key_valid(current_key)
+            is_in_cooldown = await self.cooldown_manager.is_key_in_cooldown(current_key)
 
-        while True:
-            if await self.is_key_valid(current_key):
-                return current_key
+            if is_valid and not is_in_cooldown:
+                return current_key  # 找到一个可用的key
 
             current_key = await self.get_next_key()
-            if current_key == initial_key:
-                return current_key
+        
+        # 如果循环一圈后没有找到可用的key，记录错误并返回空字符串
+        logger.error("All API keys are either invalid or in cooldown. No working key available.")
+        return ""
 
     async def get_next_working_vertex_key(self) -> str:
         """获取下一可用的 Vertex API key"""
@@ -109,6 +124,14 @@ class KeyManager:
             current_key = await self.get_next_vertex_key()
             if current_key == initial_key:
                 return current_key
+
+    async def handle_429_failure(self, api_key: str, retries: int) -> str:
+        """处理API调用因429错误失败的情况"""
+        await self.cooldown_manager.handle_429_failure(api_key)
+        if retries < settings.MAX_RETRIES:
+            return await self.get_next_working_key()
+        else:
+            return ""
 
     async def handle_api_failure(self, api_key: str, retries: int) -> str:
         """处理API调用失败"""
@@ -131,6 +154,10 @@ class KeyManager:
                 logger.warning(
                     f"Vertex API key {api_key} has failed {self.MAX_FAILURES} times"
                 )
+        if retries < settings.MAX_RETRIES:
+            return await self.get_next_working_vertex_key()
+        else:
+            return ""
 
     def get_fail_count(self, key: str) -> int:
         """获取指定密钥的失败次数"""
@@ -141,19 +168,29 @@ class KeyManager:
         return self.vertex_key_failure_counts.get(key, 0)
 
     async def get_keys_by_status(self) -> dict:
-        """获取分类后的API key列表，包括失败次数"""
+        """获取分类后的API key列表，包括失败次数和冷却状态"""
         valid_keys = {}
         invalid_keys = {}
+        cooldown_keys = {}
 
         async with self.failure_count_lock:
             for key in self.api_keys:
-                fail_count = self.key_failure_counts[key]
-                if fail_count < self.MAX_FAILURES:
-                    valid_keys[key] = fail_count
-                else:
-                    invalid_keys[key] = fail_count
+                fail_count = self.key_failure_counts.get(key, 0)
+                is_in_cooldown = await self.cooldown_manager.is_key_in_cooldown(key)
 
-        return {"valid_keys": valid_keys, "invalid_keys": invalid_keys}
+                if is_in_cooldown:
+                    cooldown_until = self.cooldown_manager.key_cooldown_until.get(key, 0)
+                    remaining_time = round(cooldown_until - time.time())
+                    cooldown_keys[key] = {
+                        "fail_count": fail_count,
+                        "cooldown_seconds_remaining": remaining_time
+                    }
+                elif fail_count >= self.MAX_FAILURES:
+                    invalid_keys[key] = fail_count
+                else:
+                    valid_keys[key] = fail_count
+        
+        return {"valid_keys": valid_keys, "invalid_keys": invalid_keys, "cooldown_keys": cooldown_keys}
 
     async def get_vertex_keys_by_status(self) -> dict:
         """获取分类后的 Vertex API key 列表，包括失败次数"""
@@ -195,7 +232,7 @@ _preserved_vertex_next_key_in_cycle: Union[str, None] = None
 
 
 async def get_key_manager_instance(
-    api_keys: list = None, vertex_api_keys: list = None
+    api_keys: Optional[list] = None, vertex_api_keys: Optional[list] = None
 ) -> KeyManager:
     """
     获取 KeyManager 单例实例。
