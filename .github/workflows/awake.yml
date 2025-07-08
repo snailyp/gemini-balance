@@ -1,0 +1,21 @@
+name: Keep Server Awake
+
+# 每10分钟触发一次（UTC时间）
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+
+jobs:
+  send-health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send GET request to health endpoint
+        run: |
+          # 发送请求并检查状态码
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://gemini-balance-o7bu.onrender.com/health)
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "Error: Received HTTP $HTTP_CODE"
+            exit 1  # 触发工作流失败，便于监控
+          else
+            echo "Health check succeeded (HTTP $HTTP_CODE)"
+          fi
