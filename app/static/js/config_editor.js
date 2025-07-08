@@ -866,8 +866,9 @@ function populateForm(config) {
       const container = document.getElementById(`${key}_container`);
       if (container) {
         value.forEach((itemValue) => {
-          if (typeof itemValue === "string") {
-            addArrayItemWithValue(key, itemValue);
+          // 确保 itemValue 是字符串或数字，然后才添加
+          if (typeof itemValue === "string" || typeof itemValue === "number") {
+            addArrayItemWithValue(key, itemValue.toString()); // 确保传入的是字符串
           } else {
             console.warn(`Invalid item found in array '${key}':`, itemValue);
           }
