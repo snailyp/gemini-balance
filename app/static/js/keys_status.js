@@ -1231,6 +1231,10 @@ document.addEventListener("DOMContentLoaded", () => {
   initializeKeyPaginationAndSearch(); // This will also handle initial display
   registerServiceWorker();
 
+  // Fetch and display key status periodically
+  fetchAndDisplayKeyStatus(); // Initial call
+  setInterval(fetchAndDisplayKeyStatus, 30000); // Refresh every 30 seconds
+
   // Initial batch actions update might be needed if not covered by displayPage
   // updateBatchActions('valid');
   // updateBatchActions('invalid');
@@ -1894,4 +1898,278 @@ function filterAndSearchValidKeys() {
   // Reset to the first page after filtering/searching
   validCurrentPage = 1;
   displayPage("valid", validCurrentPage, filteredValidKeys);
+}
+
+
+// --- Key Status and Cooldown Functions ---
+
+let countdownInterval = null;
+
+// --- 密钥失败日志模态框逻辑 ---
+async function showKeyErrorLogs(key) {
+    const modal = document.getElementById('keyErrorLogsModal');
+    const contentArea = document.getElementById('keyErrorLogsContent');
+    const titleElement = document.getElementById('keyErrorLogsModalTitle');
+    const keyDisplay = `${key.substring(0, 4)}...${key.substring(key.length - 4)}`;
+
+    if (!modal || !contentArea || !titleElement) {
+        console.error("无法找到密钥失败日志模态框元素");
+        showNotification("无法显示详情，页面元素缺失", "error");
+        return;
+    }
+
+    titleElement.textContent = `密钥 ${keyDisplay} - 失败日志`;
+    modal.classList.remove('hidden');
+    contentArea.innerHTML = `
+        <div class="text-center py-10">
+             <i class="fas fa-spinner fa-spin text-primary-600 text-3xl"></i>
+             <p class="text-gray-500 mt-2">加载中...</p>
+        </div>`;
+
+    try {
+        const data = await fetchAPI(`/api/logs/errors/key/${key}`);
+        renderKeyErrorLogs(data.logs, contentArea);
+    } catch (apiError) {
+        console.error("获取密钥失败日志失败:", apiError);
+        contentArea.innerHTML = `
+            <div class="text-center py-10 text-danger-500">
+                <i class="fas fa-exclamation-triangle text-3xl"></i>
+                <p class="mt-2">加载失败: ${apiError.message}</p>
+            </div>`;
+    }
+}
+
+function closeKeyErrorLogsModal() {
+    const modal = document.getElementById('keyErrorLogsModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+function renderKeyErrorLogs(logs, container) {
+    if (!logs || logs.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-10 text-gray-500">
+                <i class="fas fa-info-circle text-3xl"></i>
+                <p class="mt-2">该密钥没有失败记录。</p>
+            </div>`;
+        return;
+    }
+
+    let tableHtml = `
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                    <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">模型</th>
+                    <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">错误类型</th>
+                    <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">错误码</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+    `;
+
+    logs.forEach(log => {
+        const timestamp = new Date(log.request_time).toLocaleString();
+        tableHtml += `
+            <tr class="hover:bg-gray-50 cursor-pointer" onclick="showLogDetails(${log.id})">
+                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">${timestamp}</td>
+                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${log.model_name || 'N/A'}</td>
+                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${log.error_type || 'N/A'}</td>
+                <td class="px-4 py-2 whitespace-nowrap text-sm text-red-500">${log.error_code || 'N/A'}</td>
+            </tr>
+        `;
+    });
+
+    tableHtml += `
+            </tbody>
+        </table>
+    `;
+
+    container.innerHTML = tableHtml;
+}
+
+
+/**
+ * Fetches key statuses and populates the cooldown list.
+ */
+async function fetchAndDisplayKeyStatus() {
+    const cooldownContainer = document.getElementById('rate-limited-keys-container');
+    try {
+        const response = await fetch("/api/config/keys/status");
+        if (!response.ok) {
+            if (cooldownContainer) {
+                cooldownContainer.innerHTML = `<li class="text-center text-red-500 py-4 col-span-full">无法加载密钥状态 (HTTP ${response.status})。</li>`;
+            }
+            console.error(`Key status fetch failed: ${response.status}`);
+            return;
+        }
+        const data = await response.json();
+
+        if (!cooldownContainer) return;
+
+        cooldownContainer.innerHTML = ''; // Clear previous content
+
+        const cooldownKeys = data.gemini_keys.cooldown_keys || {};
+        const keys = Object.keys(cooldownKeys);
+        const limitedKeyCount = keys.length;
+
+        // Update the count in the main stats card and the list header
+        const limitedKeyStatValue = document.getElementById('limited-key-stat-value');
+        const rateLimitedKeysCount = document.getElementById('rate-limited-keys-count');
+        if (limitedKeyStatValue) {
+            limitedKeyStatValue.textContent = limitedKeyCount;
+        }
+        if (rateLimitedKeysCount) {
+            rateLimitedKeysCount.textContent = limitedKeyCount;
+        }
+
+
+        if (keys.length === 0) {
+            cooldownContainer.innerHTML = '<li class="text-center text-gray-500 py-4 col-span-full">当前没有被限制的密钥。</li>';
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            return;
+        }
+
+        keys.forEach(key => {
+            const keyData = cooldownKeys[key];
+            const remainingSeconds = keyData.cooldown_seconds_remaining;
+
+            const li = document.createElement('li');
+            li.className = 'bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-all duration-300 border border-amber-200 hover:border-amber-400 transform hover:-translate-y-1';
+            li.setAttribute('data-key', key);
+
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'flex-grow';
+
+            const innerFlex = document.createElement('div');
+            innerFlex.className = 'flex flex-col justify-between h-full gap-3';
+
+            // Top row: Status, Key, Countdown
+            const topRow = document.createElement('div');
+            topRow.className = 'flex flex-wrap items-center gap-2';
+
+            const statusSpan = document.createElement('span');
+            statusSpan.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800';
+            statusSpan.innerHTML = '<i class="fas fa-hourglass-half mr-1"></i>冷却中';
+
+            const keyDiv = document.createElement('div');
+            keyDiv.className = 'flex items-center gap-1';
+            const keyTextSpan = document.createElement('span');
+            keyTextSpan.className = 'key-text font-mono';
+            keyTextSpan.setAttribute('data-full-key', key);
+            keyTextSpan.textContent = `${key.substring(0, 4)}...${key.substring(key.length - 4)}`;
+            keyDiv.appendChild(keyTextSpan);
+
+            const countdownSpan = document.createElement('span');
+            countdownSpan.className = 'font-semibold text-amber-700 countdown-timer';
+            countdownSpan.setAttribute('data-remaining-seconds', remainingSeconds);
+            countdownSpan.textContent = formatRemainingTime(remainingSeconds);
+
+            topRow.appendChild(statusSpan);
+            topRow.appendChild(keyDiv);
+            topRow.appendChild(countdownSpan);
+
+            // Bottom row: Buttons
+            const bottomRow = document.createElement('div');
+            bottomRow.className = 'flex flex-wrap items-center gap-2';
+
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200';
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i> 复制';
+            copyBtn.onclick = () => copyKey(key);
+
+            const detailsBtn = document.createElement('button');
+            detailsBtn.className = 'flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200';
+            detailsBtn.innerHTML = '<i class="fas fa-chart-pie"></i> 详情';
+            detailsBtn.onclick = () => showKeyUsageDetails(key);
+
+            const errorLogBtn = document.createElement('button');
+            errorLogBtn.className = 'flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200';
+            errorLogBtn.innerHTML = '<i class="fas fa-bug"></i> 失败记录';
+            errorLogBtn.onclick = () => showKeyErrorLogs(key);
+
+            bottomRow.appendChild(copyBtn);
+            bottomRow.appendChild(detailsBtn);
+            bottomRow.appendChild(errorLogBtn);
+
+            innerFlex.appendChild(topRow);
+            innerFlex.appendChild(bottomRow);
+            contentWrapper.appendChild(innerFlex);
+            li.appendChild(contentWrapper);
+            cooldownContainer.appendChild(li);
+        });
+
+        if (!countdownInterval) {
+            startCountdownTimers();
+        }
+
+    } catch (error) {
+        console.error("Failed to fetch key status:", error);
+        if (cooldownContainer) {
+            cooldownContainer.innerHTML = `<li class="text-center text-red-500 py-4 col-span-full">无法加载密钥状态: ${error.message}</li>`;
+        }
+    }
+}
+
+/**
+ * Formats remaining seconds into a human-readable string.
+ * @param {number} seconds - The number of seconds remaining.
+ * @returns {string} The formatted time string.
+ */
+function formatRemainingTime(seconds) {
+    if (seconds <= 0) {
+        return "已解除";
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}分 ${remainingSeconds.toString().padStart(2, '0')}秒`;
+}
+
+/**
+ * Starts or restarts the global countdown interval.
+ */
+function startCountdownTimers() {
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+
+    countdownInterval = setInterval(() => {
+        const timers = document.querySelectorAll('.countdown-timer');
+        if (timers.length === 0) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+            return;
+        }
+
+        let allTimersFinished = true;
+        timers.forEach(timer => {
+            let remainingSeconds = parseInt(timer.getAttribute('data-remaining-seconds'), 10);
+            if (remainingSeconds > 0) {
+                allTimersFinished = false;
+                remainingSeconds--;
+                timer.setAttribute('data-remaining-seconds', remainingSeconds);
+                timer.textContent = formatRemainingTime(remainingSeconds);
+            } else {
+                timer.textContent = formatRemainingTime(0);
+                const parentItem = timer.closest('.flex.items-center.justify-between');
+                if (parentItem) {
+                    parentItem.style.backgroundColor = 'rgba(240, 253, 244, 0.9)'; // Light green
+                    parentItem.style.borderColor = 'rgba(134, 239, 172, 0.5)';
+                    timer.classList.remove('text-amber-700');
+                    timer.classList.add('text-green-700');
+                }
+            }
+        });
+
+        // If all timers are done, we can stop the interval.
+        // The main fetchAndDisplayKeyStatus will restart it if new keys appear.
+        if (allTimersFinished) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+    }, 1000);
 }

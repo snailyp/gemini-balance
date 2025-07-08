@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     TIME_OUT: int = DEFAULT_TIMEOUT
     MAX_RETRIES: int = MAX_RETRIES
     COOLDOWN_DURATIONS_MINUTES: List[int] = [30, 60, 120, 240]
+    MODEL_429_LIMIT_LIST: List[str] = ["gemini-2.5-pro"] # 429限制模型列表
     PROXIES: List[str] = []
     PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY: bool = True  # 是否使用一致性哈希来选择代理
     VERTEX_API_KEYS: List[str] = []

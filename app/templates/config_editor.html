@@ -17,6 +17,19 @@ endblock %} {% block head_extra_styles %}
     color: #374151 !important; /* gray-700 for light theme */
     border-radius: 0.5rem; /* rounded-lg consistency */
   }
+  /* Style for cooldown level label */
+  .cooldown-level-label {
+    background-color: #e0f2fe; /* light blue background */
+    color: #0c4a6e; /* dark blue text */
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.3rem;
+    font-size: 0.8em;
+    font-weight: 600;
+    white-space: nowrap;
+    min-width: 60px; /* Ensure minimum width for consistency */
+    text-align: center;
+    border: 1px solid #90cdf4; /* light blue border */
+  }
   #API_KEYS_container {
     /* Keep specific ID styling if needed */
     max-height: 300px;
@@ -1093,6 +1106,23 @@ endblock %} {% block head_extra_styles %}
         </button>
       </div>
       <small class="text-gray-500 mt-1 block">设置因429错误触发的逐级冷却时长（单位：分钟）。例如：30, 60, 120, 240。</small>
+    </div>
+    
+    <!-- 429限制模型列表 -->
+    <div class="mb-6">
+      <label for="MODEL_429_LIMIT_LIST" class="block font-semibold mb-2 text-gray-700">429限制模型列表</label>
+      <div class="array-container" id="MODEL_429_LIMIT_LIST_container">
+        <!-- 模型项将在这里动态添加 -->
+      </div>
+      <div class="flex justify-end gap-2 mt-2">
+        <button type="button" title="从列表选择模型添加到下方" class="model-helper-trigger-btn p-2 rounded-md text-violet-300 hover:bg-violet-700 transition-colors" data-target-array-key="MODEL_429_LIMIT_LIST">
+          <i class="fas fa-list-ul"></i>
+        </button>
+        <button type="button" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2" onclick="addArrayItem('MODEL_429_LIMIT_LIST')">
+          <i class="fas fa-plus"></i> 添加模型
+        </button>
+      </div>
+      <small class="text-gray-500 mt-1 block">指定哪些模型在遇到429错误时需要进入冷却。留空则所有模型都不进入冷却。</small>
     </div>
       </div>
 

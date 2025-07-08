@@ -105,6 +105,19 @@ async def process_get_error_logs(
         raise
 
 
+async def process_get_error_logs_by_key(key: str) -> Dict[str, Any]:
+    """
+    按 API 密钥检索所有错误日志。
+    """
+    try:
+        logs_data = await db_services.get_error_logs(key_search=key, limit=1000, offset=0) # Limit to 1000 for safety
+        total_count = await db_services.get_error_logs_count(key_search=key)
+        return {"logs": logs_data, "total": total_count}
+    except Exception as e:
+        logger.error(f"Service error in process_get_error_logs_by_key for key {key}: {e}", exc_info=True)
+        raise
+
+
 async def process_get_error_log_details(log_id: int) -> Optional[Dict[str, Any]]:
     """
     处理特定错误日志详细信息的检索。

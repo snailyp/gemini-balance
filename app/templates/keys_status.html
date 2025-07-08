@@ -93,6 +93,10 @@ endblock %} {% block head_extra_styles %}
     padding: 0.75rem;
   }
 
+  #key-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
   /* 统计项样式 */
   .stat-item {
     padding: 0.75rem;
@@ -1110,7 +1114,7 @@ endblock %} {% block head_extra_styles %}
           </h3>
           <span class="text-xs text-gray-500">总计: {{ total_keys }}</span>
         </div>
-        <div class="stats-grid">
+        <div id="key-stats-grid" class="stats-grid">
           <div class="stat-item stat-primary" title="总密钥数">
             <div class="stat-value">{{ total_keys }}</div>
             <div class="stat-label">总密钥数</div>
@@ -1125,6 +1129,11 @@ endblock %} {% block head_extra_styles %}
             <div class="stat-value">{{ invalid_key_count }}</div>
             <div class="stat-label">无效密钥</div>
             <i class="stat-icon fas fa-times-circle"></i>
+          </div>
+          <div class="stat-item stat-warning" title="限制密钥">
+            <div id="limited-key-stat-value" class="stat-value">{{ limited_key_count }}</div>
+            <div class="stat-label">限制密钥</div>
+            <i class="stat-icon fas fa-hourglass-half"></i>
           </div>
         </div>
       </div>
@@ -1601,6 +1610,22 @@ endblock %} {% block head_extra_styles %}
     </div>
 
     <!-- Removed old total keys display -->
+
+    <!-- 429限制访问密钥列表 -->
+    <div class="stats-card mb-6 animate-fade-in" style="animation-delay: 0.5s">
+        <div class="stats-card-header">
+            <h3 class="stats-card-title">
+                <i class="fas fa-hourglass-half text-yellow-500"></i>
+                <span>429 限制访问密钥列表 (<span id="rate-limited-keys-count">{{ limited_key_count }}</span>)</span>
+            </h3>
+        </div>
+        <div class="key-content p-4 bg-white bg-opacity-40">
+            <ul id="rate-limited-keys-container" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <!-- 被限制的密钥将在这里动态添加 -->
+                <li class="text-center text-gray-500 py-4 col-span-full">正在加载状态...</li>
+            </ul>
+        </div>
+    </div>
   </div>
 </div>
 
@@ -1905,6 +1930,330 @@ endblock %} {% block head_extra_styles %}
   </div>
 </div>
 
+<!-- 密钥错误日志模态框 -->
+<div id="keyErrorLogsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 shadow-xl max-w-4xl w-full animate-fade-in">
+        <div class="flex items-center justify-between mb-4 border-b pb-3">
+            <h3 class="text-xl font-semibold text-gray-800" id="keyErrorLogsModalTitle">密钥失败日志</h3>
+            <button onclick="closeKeyErrorLogsModal()" class="text-gray-500 hover:text-gray-700 focus:outline-none text-xl">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="keyErrorLogsContent" class="mb-6 max-h-[60vh] overflow-y-auto pr-2">
+            <!-- 详细数据将加载到这里 -->
+        </div>
+        <div class="flex justify-end pt-4 border-t">
+            <button onclick="closeKeyErrorLogsModal()" class="px-4 py-1.5 text-xs font-medium bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors">
+                关闭
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 日志详情模态框 (from error_logs.html) -->
+<div id="logDetailModal" class="modal" style="z-index: 100;">
+  <div
+    class="w-full max-w-6xl mx-auto rounded-2xl shadow-2xl overflow-hidden animate-fade-in"
+    style="
+      background-color: #ffffff;
+      color: #374151;
+      border: 1px solid #e5e7eb;
+    "
+  >
+    <div class="p-6">
+      <div
+        class="flex justify-between items-center pb-4 mb-4"
+        style="border-bottom: 1px solid #e5e7eb"
+      >
+        <h2 class="text-xl font-bold text-gray-800">错误日志详情</h2>
+        <button
+          id="closeLogDetailModalBtn"
+          class="text-gray-600 hover:text-gray-800 text-xl"
+        >
+          &times;
+        </button>
+      </div>
+
+      <div class="space-y-4 max-h-[60vh] overflow-y-auto p-1">
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">
+            Gemini密钥:
+          </h6>
+          <pre
+            id="modalGeminiKey"
+            class="font-mono text-sm p-3 rounded overflow-x-auto"
+            style="background-color: #f1f5f9; color: #374151"
+          ></pre>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalGeminiKey"
+            title="复制密钥"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">错误类型:</h6>
+          <p id="modalErrorType" class="text-red-600 font-medium pr-8"></p>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalErrorType"
+            title="复制错误类型"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">错误日志:</h6>
+          <pre
+            id="modalErrorLog"
+            class="font-mono text-sm p-3 rounded overflow-x-auto whitespace-pre-wrap"
+            style="background-color: #f1f5f9; color: #374151"
+          ></pre>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalErrorLog"
+            title="复制错误日志"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">请求消息:</h6>
+          <pre
+            id="modalRequestMsg"
+            class="font-mono text-sm p-3 rounded overflow-x-auto whitespace-pre-wrap"
+            style="background-color: #f1f5f9; color: #374151"
+          ></pre>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalRequestMsg"
+            title="复制请求消息"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">模型名称:</h6>
+          <p id="modalModelName" class="font-medium pr-8 text-gray-700"></p>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalModelName"
+            title="复制模型名称"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">请求时间:</h6>
+          <p id="modalRequestTime" class="font-medium pr-8 text-gray-700"></p>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalRequestTime"
+            title="复制请求时间"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+      </div>
+
+      <div
+        class="flex justify-end mt-6 pt-4"
+        style="border-top: 1px solid #e5e7eb"
+      >
+        <button
+          type="button"
+          id="closeModalFooterBtn"
+          class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition"
+        >
+          关闭
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 日志详情模态框 (from error_logs.html) -->
+<div id="logDetailModal" class="modal" style="z-index: 100;">
+  <div
+    class="w-full max-w-6xl mx-auto rounded-2xl shadow-2xl overflow-hidden animate-fade-in"
+    style="
+      background-color: #ffffff;
+      color: #374151;
+      border: 1px solid #e5e7eb;
+    "
+  >
+    <div class="p-6">
+      <div
+        class="flex justify-between items-center pb-4 mb-4"
+        style="border-bottom: 1px solid #e5e7eb"
+      >
+        <h2 class="text-xl font-bold text-gray-800">错误日志详情</h2>
+        <button
+          id="closeLogDetailModalBtn"
+          class="text-gray-600 hover:text-gray-800 text-xl"
+        >
+          &times;
+        </button>
+      </div>
+
+      <div class="space-y-4 max-h-[60vh] overflow-y-auto p-1">
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">
+            Gemini密钥:
+          </h6>
+          <pre
+            id="modalGeminiKey"
+            class="font-mono text-sm p-3 rounded overflow-x-auto"
+            style="background-color: #f1f5f9; color: #374151"
+          ></pre>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalGeminiKey"
+            title="复制密钥"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">错误类型:</h6>
+          <p id="modalErrorType" class="text-red-600 font-medium pr-8"></p>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalErrorType"
+            title="复制错误类型"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">错误日志:</h6>
+          <pre
+            id="modalErrorLog"
+            class="font-mono text-sm p-3 rounded overflow-x-auto whitespace-pre-wrap"
+            style="background-color: #f1f5f9; color: #374151"
+          ></pre>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalErrorLog"
+            title="复制错误日志"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">请求消息:</h6>
+          <pre
+            id="modalRequestMsg"
+            class="font-mono text-sm p-3 rounded overflow-x-auto whitespace-pre-wrap"
+            style="background-color: #f1f5f9; color: #374151"
+          ></pre>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalRequestMsg"
+            title="复制请求消息"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">模型名称:</h6>
+          <p id="modalModelName" class="font-medium pr-8 text-gray-700"></p>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalModelName"
+            title="复制模型名称"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+
+        <div
+          class="p-4 rounded-lg relative group"
+          style="background-color: #f8fafc"
+        >
+          <h6 class="text-sm font-semibold text-blue-600 mb-1">请求时间:</h6>
+          <p id="modalRequestTime" class="font-medium pr-8 text-gray-700"></p>
+          <button
+            class="copy-btn absolute top-2 right-2 hover:bg-gray-200 text-gray-600 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style="background-color: #e2e8f0"
+            data-target="modalRequestTime"
+            title="复制请求时间"
+          >
+            <i class="far fa-copy"></i>
+          </button>
+        </div>
+      </div>
+
+      <div
+        class="flex justify-end mt-6 pt-4"
+        style="border-top: 1px solid #e5e7eb"
+      >
+        <button
+          type="button"
+          id="closeModalFooterBtn"
+          class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition"
+        >
+          关闭
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 密钥使用详情模态框 -->
 <div
   id="keyUsageDetailsModal"
@@ -1953,6 +2302,8 @@ endblock %} {% block head_extra_styles %}
 <!-- Footer is now in base.html -->
 
 {% endblock %} {% block body_scripts %}
+<script src="/static/js/error_logs.js"></script>
+<script src="/static/js/keys_status.js"></script>
 <script>
   // keys_status.html specific JavaScript initialization is now handled by keys_status.js
   // The DOMContentLoaded listener in keys_status.js will execute after the DOM is ready.

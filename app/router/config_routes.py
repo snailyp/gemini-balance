@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from app.core.security import verify_auth_token
 from app.log.logger import Logger, get_config_routes_logger
 from app.service.config.config_service import ConfigService
+from app.service.key.key_manager import get_key_manager_instance
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
@@ -131,3 +132,32 @@ async def get_ui_models(request: Request):
             status_code=500,
             detail=f"An unexpected error occurred while fetching UI models: {str(e)}",
         )
+
+
+@router.get("/keys/status", response_model=Dict[str, Any])
+async def get_keys_status(request: Request):
+    """
+    获取所有 key 的状态，包括有效、无效和冷却中。
+    """
+    auth_token = request.cookies.get("auth_token")
+    if not auth_token or not verify_auth_token(auth_token):
+        logger.warning("Unauthorized access attempt to keys status page")
+        raise HTTPException(status_code=403, detail="Not authenticated")
+
+    try:
+        # 获取 KeyManager 单例
+        key_manager = await get_key_manager_instance()
+        
+        # 获取 Gemini keys 的状态
+        gemini_keys_status = await key_manager.get_keys_by_status()
+        
+        # 为了保持接口一致性，也获取 Vertex keys 的状态
+        vertex_keys_status = await key_manager.get_vertex_keys_by_status()
+
+        return {
+            "gemini_keys": gemini_keys_status,
+            "vertex_keys": vertex_keys_status,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching key statuses: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred while fetching key statuses: {str(e)}")

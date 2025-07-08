@@ -701,6 +701,12 @@ async function initConfig() {
     if (!config.COOLDOWN_DURATIONS_MINUTES || !Array.isArray(config.COOLDOWN_DURATIONS_MINUTES)) {
       config.COOLDOWN_DURATIONS_MINUTES = [30, 60, 120, 240];
     }
+    if (!config.MODEL_429_LIMIT_LIST || !Array.isArray(config.MODEL_429_LIMIT_LIST)) {
+      config.MODEL_429_LIMIT_LIST = ["gemini-2.5-pro"];
+    }
+    if (typeof config.COOLING_OFF_DURATION_MINUTES === "undefined") {
+        config.COOLING_OFF_DURATION_MINUTES = 60;
+    }
     // --- 结束：处理 COOLDOWN_DURATIONS_MINUTES 默认值 ---
 
     // --- 新增：处理自动删除错误日志配置的默认值 ---
@@ -860,9 +866,27 @@ function populateForm(config) {
       '<div class="text-gray-500 text-sm italic">请在上方添加思考模型，预算将自动关联。</div>';
   }
 
-  // 4. Populate other array fields (excluding THINKING_MODELS)
+  // 4. Populate COOLDOWN_DURATIONS_MINUTES specifically
+  if (Array.isArray(config.COOLDOWN_DURATIONS_MINUTES)) {
+    const container = document.getElementById("COOLDOWN_DURATIONS_MINUTES_container");
+    if (container) {
+      // Clear existing content to prevent duplicates on re-population
+      container.innerHTML = "";
+      config.COOLDOWN_DURATIONS_MINUTES.forEach((itemValue, index) => {
+        if (typeof itemValue === "number") { // Ensure it's a number
+          addArrayItemWithValue("COOLDOWN_DURATIONS_MINUTES", itemValue.toString(), index);
+        } else {
+          console.warn(`Invalid COOLDOWN_DURATIONS_MINUTES item found:`, itemValue);
+        }
+      });
+    } else {
+      console.error("Critical: COOLDOWN_DURATIONS_MINUTES_container not found!");
+    }
+  }
+
+  // 5. Populate other array fields (excluding THINKING_MODELS and COOLDOWN_DURATIONS_MINUTES)
   for (const [key, value] of Object.entries(config)) {
-    if (Array.isArray(value) && key !== "THINKING_MODELS") {
+    if (Array.isArray(value) && key !== "THINKING_MODELS" && key !== "COOLDOWN_DURATIONS_MINUTES" && key !== "MODEL_429_LIMIT_LIST") {
       const container = document.getElementById(`${key}_container`);
       if (container) {
         value.forEach((itemValue) => {
@@ -993,6 +1017,17 @@ function populateForm(config) {
     // });
   }
   // --- 结束：处理假流式配置的字段 ---
+    if (Array.isArray(config.MODEL_429_LIMIT_LIST)) {
+        const container = document.getElementById("MODEL_429_LIMIT_LIST_container");
+        if (container) {
+            container.innerHTML = "";
+            config.MODEL_429_LIMIT_LIST.forEach(itemValue => {
+                if (typeof itemValue === "string") {
+                    addArrayItemWithValue("MODEL_429_LIMIT_LIST", itemValue);
+                }
+            });
+        }
+    }
 }
 
 /**
@@ -1439,7 +1474,7 @@ function addArrayItem(key) {
  * @param {string} value - The value for the array item.
  * @returns {string|null} The generated modelId if it's a thinking model, otherwise null.
  */
-function addArrayItemWithValue(key, value) {
+function addArrayItemWithValue(key, value, index = null) {
   const container = document.getElementById(`${key}_container`);
   if (!container) return null;
 
@@ -1455,6 +1490,13 @@ function addArrayItemWithValue(key, value) {
   arrayItem.className = `${ARRAY_ITEM_CLASS} flex items-center mb-2 gap-2`;
   if (isThinkingModel) {
     arrayItem.setAttribute("data-model-id", modelId);
+  }
+
+  if (isCooldownDuration && index !== null) {
+    const levelLabel = document.createElement("span");
+    levelLabel.className = "text-gray-600 font-medium mr-2";
+    levelLabel.textContent = `等级 ${index}`;
+    arrayItem.appendChild(levelLabel);
   }
 
   const inputWrapper = document.createElement("div");

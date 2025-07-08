@@ -122,6 +122,30 @@ class ErrorLogDetailResponse(BaseModel):
     request_time: Optional[datetime] = None
 
 
+@router.get("/errors/key/{key}", response_model=ErrorLogListResponse)
+async def get_error_logs_by_key_api(request: Request, key: str = Path(..., description="API Key to search for")):
+    """
+    根据 API 密钥获取其所有错误日志
+    """
+    auth_token = request.cookies.get("auth_token")
+    if not auth_token or not verify_auth_token(auth_token):
+        logger.warning(f"Unauthorized access attempt for logs of key: {key}")
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        result = await error_log_service.process_get_error_logs_by_key(key=key)
+        logs_data = result["logs"]
+        total_count = result["total"]
+
+        validated_logs = [ErrorLogListItem(**log) for log in logs_data]
+        return ErrorLogListResponse(logs=validated_logs, total=total_count)
+    except Exception as e:
+        logger.exception(f"Failed to get error logs for key {key}: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get error logs for key: {str(e)}"
+        )
+
+
 @router.get("/errors/{log_id}/details", response_model=ErrorLogDetailResponse)
 async def get_error_log_detail_api(request: Request, log_id: int = Path(..., ge=1)):
     """

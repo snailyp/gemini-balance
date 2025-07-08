@@ -335,7 +335,7 @@ class GeminiChatService:
                 )
 
                 # 根据错误类型选择不同的处理方式
-                if is_429_error:
+                if is_429_error and model in settings.MODEL_429_LIMIT_LIST:
                     logger.info(f"Handling 429 error for key: {current_attempt_key}")
                     api_key = await self.key_manager.handle_429_failure(current_attempt_key, retries)
                 else:

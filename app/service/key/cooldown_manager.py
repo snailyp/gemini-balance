@@ -16,6 +16,8 @@ class CooldownManager:
         self.key_cooldown_until: Dict[str, float] = {}
         # 存储每个key当前的冷却等级
         self.key_cooldown_level: Dict[str, int] = {}
+        # 存储每个key冷却开始的时间
+        self.key_cooldown_started_at: Dict[str, float] = {}
         # 从配置中获取冷却时长列表（分钟）
         self.cooldown_durations_minutes: List[int] = settings.COOLDOWN_DURATIONS_MINUTES
         self.lock = asyncio.Lock()
@@ -34,7 +36,9 @@ class CooldownManager:
             
             # 计算冷却截止的Unix时间戳
             cooldown_seconds = cooldown_minutes * 60
-            self.key_cooldown_until[api_key] = time.time() + cooldown_seconds
+            current_time = time.time()
+            self.key_cooldown_until[api_key] = current_time + cooldown_seconds
+            self.key_cooldown_started_at[api_key] = current_time
 
             # 更新key的冷却等级，如果达到最高等级，则循环回0
             next_level = (current_level + 1) % len(self.cooldown_durations_minutes)
@@ -57,14 +61,22 @@ class CooldownManager:
         """检查一个key当前是否处于冷却状态。"""
         async with self.lock:
             cooldown_until = self.key_cooldown_until.get(api_key)
-            
+
             if cooldown_until and time.time() < cooldown_until:
                 # 如果key在冷却期内
                 return True
-            
-            # 如果key不在冷却期内，或者冷却时间已过，则清理旧状态
+
+            # 如果key不在冷却期内，或者冷却时间已过
             if cooldown_until:
+                # 检查冷却开始时间是否超过24小时
+                started_at = self.key_cooldown_started_at.get(api_key)
+                if started_at and (time.time() - started_at > 24 * 60 * 60):
+                    logger.info(f"API key '{api_key}' cooldown has expired for over 24 hours. Resetting cooldown level to 0.")
+                    logger.info(f"API密钥 '{api_key}' 的冷却时间已超过24小时，重置冷却等级为0。")
+                    self.key_cooldown_level[api_key] = 0
+                    del self.key_cooldown_started_at[api_key]
+
+                # 清理旧的冷却截止时间
                 del self.key_cooldown_until[api_key]
-                # 注意：我们保留 cooldown_level，以便下次失败时能进入下一等级
-            
+
             return False
