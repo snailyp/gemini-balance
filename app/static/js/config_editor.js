@@ -1445,9 +1445,10 @@ function addArrayItemWithValue(key, value) {
 
   const isThinkingModel = key === "THINKING_MODELS";
   const isAllowedToken = key === "ALLOWED_TOKENS";
-  const isVertexApiKey = key === "VERTEX_API_KEYS"; // 新增判断
+  const isVertexApiKey = key === "VERTEX_API_KEYS";
+  const isCooldownDuration = key === "COOLDOWN_DURATIONS_MINUTES";
   const isSensitive =
-    key === "API_KEYS" || isAllowedToken || isVertexApiKey; // 更新敏感判断
+    key === "API_KEYS" || isAllowedToken || isVertexApiKey;
   const modelId = isThinkingModel ? generateUUID() : null;
 
   const arrayItem = document.createElement("div");
@@ -1459,9 +1460,8 @@ function addArrayItemWithValue(key, value) {
   const inputWrapper = document.createElement("div");
   inputWrapper.className =
     "flex items-center flex-grow rounded-md focus-within:border-blue-500 focus-within:ring focus-within:ring-blue-500 focus-within:ring-opacity-50";
-  // Apply light theme border directly via style
   inputWrapper.style.border = "1px solid rgba(0, 0, 0, 0.12)";
-  inputWrapper.style.backgroundColor = "transparent"; // Ensure wrapper is transparent
+  inputWrapper.style.backgroundColor = "transparent";
 
   const input = createArrayInput(
     key,
@@ -1469,13 +1469,18 @@ function addArrayItemWithValue(key, value) {
     isSensitive,
     isThinkingModel ? modelId : null
   );
+
+  if (isCooldownDuration) {
+      input.type = "number";
+      input.min = "0";
+  }
+
   inputWrapper.appendChild(input);
 
   if (isAllowedToken) {
     const generateBtn = createGenerateTokenButton();
     inputWrapper.appendChild(generateBtn);
   } else {
-    // Ensure right-side rounding if no button is present
     input.classList.add("rounded-r-md");
   }
 
@@ -1485,7 +1490,6 @@ function addArrayItemWithValue(key, value) {
   arrayItem.appendChild(removeBtn);
   container.appendChild(arrayItem);
 
-  // Initialize sensitive field if applicable
   if (isSensitive && input.value) {
     if (configForm && typeof initializeSensitiveFields === "function") {
       const focusoutEvent = new Event("focusout", {
