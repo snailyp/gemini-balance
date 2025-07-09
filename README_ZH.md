@@ -210,6 +210,7 @@ app/
 | `PICGO_API_KEY`              | 可选，[PicoGo](https://www.picgo.net/)图床的API Key                                      | `your-picogo-apikey`                                  |
 | `CLOUDFLARE_IMGBED_URL`      | 可选，[CloudFlare](https://github.com/MarSeventh/CloudFlare-ImgBed) 图床上传地址                                  | `https://xxxxxxx.pages.dev/upload`                    |
 | `CLOUDFLARE_IMGBED_AUTH_CODE`| 可选，CloudFlare图床的鉴权key                                  | `your-cloudflare-imgber-auth-code`                    |
+| `CLOUDFLARE_IMGBED_UPLOAD_FOLDER`| 可选，CloudFlare图床的上传文件夹路径                        | `""`                                                  |
 | **流式优化器相关**           |                                                          |                                                       |
 | `STREAM_OPTIMIZER_ENABLED`   | 可选，是否启用流式输出优化                                     | `false`                                               |
 | `STREAM_MIN_DELAY`           | 可选，流式输出最小延迟                                         | `0.016`                                               |

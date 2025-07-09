@@ -238,6 +238,7 @@ def _extract_image_data(part: dict) -> str:
             provider=settings.UPLOAD_PROVIDER,
             base_url=settings.CLOUDFLARE_IMGBED_URL,
             auth_code=settings.CLOUDFLARE_IMGBED_AUTH_CODE,
+            upload_folder=settings.CLOUDFLARE_IMGBED_UPLOAD_FOLDER,
         )
     current_date = time.strftime("%Y/%m/%d")
     filename = f"{current_date}/{uuid.uuid4().hex[:8]}.png"

@@ -121,6 +121,7 @@ class ImageCreateService:
                             provider=settings.UPLOAD_PROVIDER,
                             base_url=settings.CLOUDFLARE_IMGBED_URL,
                             auth_code=settings.CLOUDFLARE_IMGBED_AUTH_CODE,
+                            upload_folder=settings.CLOUDFLARE_IMGBED_UPLOAD_FOLDER,
                         )
                     else:
                         raise ValueError(

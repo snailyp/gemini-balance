@@ -151,6 +151,35 @@ async def stream_generate_content(
         return StreamingResponse(response_stream, media_type="text/event-stream")
 
 
+@router.post("/models/{model_name}:countTokens")
+@router_v1beta.post("/models/{model_name}:countTokens")
+@RetryHandler(key_arg="api_key")
+async def count_tokens(
+    model_name: str,
+    request: GeminiRequest,
+    _=Depends(security_service.verify_key_or_goog_api_key),
+    api_key: str = Depends(get_next_working_key),
+    key_manager: KeyManager = Depends(get_key_manager),
+    chat_service: GeminiChatService = Depends(get_chat_service)
+):
+    """处理 Gemini token 计数请求。"""
+    operation_name = "gemini_count_tokens"
+    async with handle_route_errors(logger, operation_name, failure_message="Token counting failed"):
+        logger.info(f"Handling Gemini token count request for model: {model_name}")
+        logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
+        logger.info(f"Using API key: {api_key}")
+
+        if not await model_service.check_model_support(model_name):
+            raise HTTPException(status_code=400, detail=f"Model {model_name} is not supported")
+
+        response = await chat_service.count_tokens(
+            model=model_name,
+            request=request,
+            api_key=api_key
+        )
+        return response
+
+
 @router.post("/reset-all-fail-counts")
 async def reset_all_key_fail_counts(key_type: str = None, key_manager: KeyManager = Depends(get_key_manager)):
     """批量重置Gemini API密钥的失败计数，可选择性地仅重置有效或无效密钥"""

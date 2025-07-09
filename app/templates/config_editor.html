@@ -96,12 +96,7 @@ endblock %} {% block head_extra_styles %}
 
   /* Theming for select fields - 改进下拉框样式 */
   .form-select-themed {
-    background-color: rgba(
-      255,
-      255,
-      255,
-      0.95
-    ) !important; /* 白色背景 */
+    background-color: rgba(255, 255, 255, 0.95) !important; /* 白色背景 */
     border: 1px solid rgba(0, 0, 0, 0.12) !important; /* 灰色边框 */
     color: #374151 !important; /* gray-700 文字颜色 */
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") !important; /* 灰色箭头 */
@@ -124,7 +119,12 @@ endblock %} {% block head_extra_styles %}
   }
 
   .form-select-themed option {
-    background-color: rgba(255, 255, 255, 0.98) !important; /* white background */
+    background-color: rgba(
+      255,
+      255,
+      255,
+      0.98
+    ) !important; /* white background */
     color: #374151 !important; /* gray-700 */
     padding: 8px !important;
   }
@@ -141,22 +141,42 @@ endblock %} {% block head_extra_styles %}
   }
 
   #LOG_LEVEL option[value="INFO"] {
-    background-color: rgba(249, 250, 251, 0.98) !important; /* gray-50 浅灰背景 */
+    background-color: rgba(
+      249,
+      250,
+      251,
+      0.98
+    ) !important; /* gray-50 浅灰背景 */
     color: #374151 !important; /* gray-700 深灰色文字 */
   }
 
   #LOG_LEVEL option[value="WARNING"] {
-    background-color: rgba(243, 244, 246, 0.98) !important; /* gray-100 稍深灰背景 */
+    background-color: rgba(
+      243,
+      244,
+      246,
+      0.98
+    ) !important; /* gray-100 稍深灰背景 */
     color: #374151 !important; /* gray-700 深灰色文字 */
   }
 
   #LOG_LEVEL option[value="ERROR"] {
-    background-color: rgba(229, 231, 235, 0.98) !important; /* gray-200 中灰背景 */
+    background-color: rgba(
+      229,
+      231,
+      235,
+      0.98
+    ) !important; /* gray-200 中灰背景 */
     color: #374151 !important; /* gray-700 深灰色文字 */
   }
 
   #LOG_LEVEL option[value="CRITICAL"] {
-    background-color: rgba(209, 213, 219, 0.98) !important; /* gray-300 深灰背景 */
+    background-color: rgba(
+      209,
+      213,
+      219,
+      0.98
+    ) !important; /* gray-300 深灰背景 */
     color: #374151 !important; /* gray-700 深灰色文字 */
   }
 
@@ -228,7 +248,12 @@ endblock %} {% block head_extra_styles %}
   }
 
   .generate-btn:hover {
-    background-color: rgba(59, 130, 246, 0.2) !important; /* blue-500 more opaque */
+    background-color: rgba(
+      59,
+      130,
+      246,
+      0.2
+    ) !important; /* blue-500 more opaque */
     color: #1d4ed8 !important; /* blue-700 */
     box-shadow: 0 0 8px rgba(59, 130, 246, 0.3) !important;
   }
@@ -302,36 +327,47 @@ endblock %} {% block head_extra_styles %}
   }
 
   /* Override all violet/purple buttons to light blue */
-  .bg-violet-600, button.bg-violet-600 {
+  .bg-violet-600,
+  button.bg-violet-600 {
     background-color: #3b82f6 !important; /* blue-500 - light blue */
   }
 
-  .bg-violet-600:hover, button.bg-violet-600:hover,
+  .bg-violet-600:hover,
+  button.bg-violet-600:hover,
   .hover\\:bg-violet-700:hover {
     background-color: #2563eb !important; /* blue-600 - darker light blue */
   }
 
   /* Override blue buttons to light blue */
-  .bg-blue-600, button.bg-blue-600 {
+  .bg-blue-600,
+  button.bg-blue-600 {
     background-color: #3b82f6 !important; /* blue-500 - light blue */
   }
 
-  .bg-blue-600:hover, button.bg-blue-600:hover,
+  .bg-blue-600:hover,
+  button.bg-blue-600:hover,
   .hover\\:bg-blue-700:hover {
     background-color: #2563eb !important; /* blue-600 - darker light blue */
   }
 
   /* Override red buttons to bright light red */
-  .bg-red-600, button.bg-red-600,
-  .bg-red-700, button.bg-red-700,
-  .bg-red-800, button.bg-red-800 {
+  .bg-red-600,
+  button.bg-red-600,
+  .bg-red-700,
+  button.bg-red-700,
+  .bg-red-800,
+  button.bg-red-800 {
     background-color: #f87171 !important; /* red-400 - bright light red */
   }
 
-  .bg-red-600:hover, button.bg-red-600:hover,
-  .bg-red-700:hover, button.bg-red-700:hover,
-  .bg-red-800:hover, button.bg-red-800:hover,
-  .hover\\:bg-red-700:hover, .hover\\:bg-red-800:hover {
+  .bg-red-600:hover,
+  button.bg-red-600:hover,
+  .bg-red-700:hover,
+  button.bg-red-700:hover,
+  .bg-red-800:hover,
+  button.bg-red-800:hover,
+  .hover\\:bg-red-700:hover,
+  .hover\\:bg-red-800:hover {
     background-color: #ef4444 !important; /* red-500 - darker bright light red */
   }
 
@@ -349,7 +385,8 @@ endblock %} {% block head_extra_styles %}
   button.tab-btn.active {
     background-color: #3b82f6 !important; /* blue-500 */
     color: #ffffff !important; /* 确保白色文字 */
-    box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.4), 0 2px 6px -1px rgba(59, 130, 246, 0.2) !important; /* 蓝色阴影 */
+    box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.4),
+      0 2px 6px -1px rgba(59, 130, 246, 0.2) !important; /* 蓝色阴影 */
     transform: translateY(-2px) !important; /* 更明显的上移效果 */
     border: 2px solid #2563eb !important; /* blue-600 边框 */
     font-weight: 600 !important; /* 加粗字体 */
@@ -388,7 +425,8 @@ endblock %} {% block head_extra_styles %}
     background-color: #3b82f6 !important;
     color: #ffffff !important;
     border: 2px solid #2563eb !important;
-    box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.4), 0 2px 6px -1px rgba(59, 130, 246, 0.2) !important;
+    box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.4),
+      0 2px 6px -1px rgba(59, 130, 246, 0.2) !important;
     transform: translateY(-2px) !important;
     font-weight: 600 !important;
   }
@@ -409,7 +447,8 @@ endblock %} {% block head_extra_styles %}
     background-color: rgba(255, 255, 255, 0.98) !important;
     color: #374151 !important; /* gray-700 */
     border-color: rgba(0, 0, 0, 0.08) !important;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
   }
 
   /* Fix modal titles */
@@ -428,62 +467,78 @@ endblock %} {% block head_extra_styles %}
   }
 
   /* Fix modal body text */
-  .modal p, .modal label, .modal span {
+  .modal p,
+  .modal label,
+  .modal span {
     color: #374151 !important; /* gray-700 */
   }
 
   /* Fix modal textarea and input styling */
-  .modal textarea, .modal input {
+  .modal textarea,
+  .modal input {
     background-color: rgba(255, 255, 255, 0.95) !important;
     color: #374151 !important; /* gray-700 */
     border: 1px solid rgba(0, 0, 0, 0.12) !important;
   }
 
-  .modal textarea:focus, .modal input:focus {
+  .modal textarea:focus,
+  .modal input:focus {
     border-color: #3b82f6 !important; /* blue-500 */
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
   }
 
   /* Fix modal button styling */
-  .modal .bg-violet-600, .modal button.bg-violet-600 {
+  .modal .bg-violet-600,
+  .modal button.bg-violet-600 {
     background-color: #3b82f6 !important; /* blue-500 - light blue */
     color: #ffffff !important;
     border: 1px solid #2563eb !important; /* blue-600 */
   }
 
-  .modal .bg-violet-600:hover, .modal button.bg-violet-600:hover {
+  .modal .bg-violet-600:hover,
+  .modal button.bg-violet-600:hover {
     background-color: #2563eb !important; /* blue-600 - darker light blue */
     transform: translateY(-1px) !important;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
   }
 
   /* Fix modal blue button styling */
-  .modal .bg-blue-500, .modal button.bg-blue-500,
-  .modal .bg-blue-600, .modal button.bg-blue-600,
-  .modal .bg-blue-700, .modal button.bg-blue-700 {
+  .modal .bg-blue-500,
+  .modal button.bg-blue-500,
+  .modal .bg-blue-600,
+  .modal button.bg-blue-600,
+  .modal .bg-blue-700,
+  .modal button.bg-blue-700 {
     background-color: #3b82f6 !important; /* blue-500 - light blue */
     color: #ffffff !important;
     border: 1px solid #2563eb !important; /* blue-600 */
   }
 
-  .modal .bg-blue-500:hover, .modal button.bg-blue-500:hover,
-  .modal .bg-blue-600:hover, .modal button.bg-blue-600:hover,
-  .modal .bg-blue-700:hover, .modal button.bg-blue-700:hover {
+  .modal .bg-blue-500:hover,
+  .modal button.bg-blue-500:hover,
+  .modal .bg-blue-600:hover,
+  .modal button.bg-blue-600:hover,
+  .modal .bg-blue-700:hover,
+  .modal button.bg-blue-700:hover {
     background-color: #2563eb !important; /* blue-600 - darker light blue */
     transform: translateY(-1px) !important;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
   }
 
   /* Fix modal cancel/secondary buttons */
-  .modal .bg-gray-500, .modal button.bg-gray-500,
-  .modal .bg-gray-600, .modal button.bg-gray-600 {
+  .modal .bg-gray-500,
+  .modal button.bg-gray-500,
+  .modal .bg-gray-600,
+  .modal button.bg-gray-600 {
     background-color: #e5e7eb !important; /* gray-200 - light gray */
     color: #374151 !important; /* gray-700 - dark text for contrast */
     border: 1px solid #d1d5db !important; /* gray-300 */
   }
 
-  .modal .bg-gray-500:hover, .modal button.bg-gray-500:hover,
-  .modal .bg-gray-600:hover, .modal button.bg-gray-600:hover {
+  .modal .bg-gray-500:hover,
+  .modal button.bg-gray-500:hover,
+  .modal .bg-gray-600:hover,
+  .modal button.bg-gray-600:hover {
     background-color: #d1d5db !important; /* gray-300 - darker light gray */
     color: #374151 !important; /* gray-700 - dark text for contrast */
     transform: translateY(-1px) !important;
@@ -491,17 +546,23 @@ endblock %} {% block head_extra_styles %}
   }
 
   /* Fix modal red/danger buttons */
-  .modal .bg-red-500, .modal button.bg-red-500,
-  .modal .bg-red-600, .modal button.bg-red-600,
-  .modal .bg-red-700, .modal button.bg-red-700 {
+  .modal .bg-red-500,
+  .modal button.bg-red-500,
+  .modal .bg-red-600,
+  .modal button.bg-red-600,
+  .modal .bg-red-700,
+  .modal button.bg-red-700 {
     background-color: #f87171 !important; /* red-400 - bright light red */
     color: #ffffff !important;
     border: 1px solid #ef4444 !important; /* red-500 */
   }
 
-  .modal .bg-red-500:hover, .modal button.bg-red-500:hover,
-  .modal .bg-red-600:hover, .modal button.bg-red-600:hover,
-  .modal .bg-red-700:hover, .modal button.bg-red-700:hover {
+  .modal .bg-red-500:hover,
+  .modal button.bg-red-500:hover,
+  .modal .bg-red-600:hover,
+  .modal button.bg-red-600:hover,
+  .modal .bg-red-700:hover,
+  .modal button.bg-red-700:hover {
     background-color: #ef4444 !important; /* red-500 - darker bright light red */
     transform: translateY(-1px) !important;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
@@ -542,27 +603,54 @@ endblock %} {% block head_extra_styles %}
   }
 
   /* Comprehensive button text color fixes */
-  .bg-blue-500, .bg-blue-600, .bg-blue-700,
-  .bg-red-500, .bg-red-600, .bg-red-700, .bg-red-800,
-  .bg-green-500, .bg-green-600, .bg-green-700,
-  .bg-sky-500, .bg-sky-600, .bg-sky-700,
-  .bg-purple-500, .bg-purple-600, .bg-purple-700,
-  .bg-violet-500, .bg-violet-600, .bg-violet-700 {
+  .bg-blue-500,
+  .bg-blue-600,
+  .bg-blue-700,
+  .bg-red-500,
+  .bg-red-600,
+  .bg-red-700,
+  .bg-red-800,
+  .bg-green-500,
+  .bg-green-600,
+  .bg-green-700,
+  .bg-sky-500,
+  .bg-sky-600,
+  .bg-sky-700,
+  .bg-purple-500,
+  .bg-purple-600,
+  .bg-purple-700,
+  .bg-violet-500,
+  .bg-violet-600,
+  .bg-violet-700 {
     color: #ffffff !important;
   }
 
   /* Ensure button children inherit white text */
-  .bg-blue-500 *, .bg-blue-600 *, .bg-blue-700 *,
-  .bg-red-500 *, .bg-red-600 *, .bg-red-700 *, .bg-red-800 *,
-  .bg-green-500 *, .bg-green-600 *, .bg-green-700 *,
-  .bg-sky-500 *, .bg-sky-600 *, .bg-sky-700 *,
-  .bg-purple-500 *, .bg-purple-600 *, .bg-purple-700 *,
-  .bg-violet-500 *, .bg-violet-600 *, .bg-violet-700 * {
+  .bg-blue-500 *,
+  .bg-blue-600 *,
+  .bg-blue-700 *,
+  .bg-red-500 *,
+  .bg-red-600 *,
+  .bg-red-700 *,
+  .bg-red-800 *,
+  .bg-green-500 *,
+  .bg-green-600 *,
+  .bg-green-700 *,
+  .bg-sky-500 *,
+  .bg-sky-600 *,
+  .bg-sky-700 *,
+  .bg-purple-500 *,
+  .bg-purple-600 *,
+  .bg-purple-700 *,
+  .bg-violet-500 *,
+  .bg-violet-600 *,
+  .bg-violet-700 * {
     color: inherit !important;
   }
 
   /* Fix page title gradient - comprehensive override */
-  h1.text-transparent, .text-transparent.bg-clip-text,
+  h1.text-transparent,
+  .text-transparent.bg-clip-text,
   .bg-gradient-to-r.from-violet-400.to-pink-400 {
     background: none !important;
     color: #1f2937 !important; /* gray-800 - consistent with other pages */
@@ -579,15 +667,24 @@ endblock %} {% block head_extra_styles %}
   }
 
   /* Ensure all violet/purple colors are converted to blue theme */
-  .text-violet-300, .text-violet-400, .text-violet-100 {
+  .text-violet-300,
+  .text-violet-400,
+  .text-violet-100 {
     color: #3b82f6 !important; /* blue-500 */
   }
 
-  .border-violet-300, .border-violet-400 {
-    border-color: rgba(59, 130, 246, 0.3) !important; /* blue-500 with opacity */
+  .border-violet-300,
+  .border-violet-400 {
+    border-color: rgba(
+      59,
+      130,
+      246,
+      0.3
+    ) !important; /* blue-500 with opacity */
   }
 
-  .hover\\:text-violet-400:hover, .hover\\:text-violet-100:hover {
+  .hover\\:text-violet-400:hover,
+  .hover\\:text-violet-100:hover {
     color: #2563eb !important; /* blue-600 */
   }
 
@@ -613,7 +710,9 @@ endblock %} {% block head_extra_styles %}
   }
 
   /* Even more specific selector targeting the exact auth token wrapper */
-  .mb-6 .flex.items-center div.flex.items-center.flex-grow.border.rounded-md:focus-within {
+  .mb-6
+    .flex.items-center
+    div.flex.items-center.flex-grow.border.rounded-md:focus-within {
     border-color: #3b82f6 !important; /* blue-500 */
   }
 
@@ -625,7 +724,12 @@ endblock %} {% block head_extra_styles %}
 
   .focus\\:ring-primary-200:focus,
   .focus\\:ring-primary-300:focus {
-    --tw-ring-color: rgba(59, 130, 246, 0.2) !important; /* blue-500 with opacity */
+    --tw-ring-color: rgba(
+      59,
+      130,
+      246,
+      0.2
+    ) !important; /* blue-500 with opacity */
   }
 
   /* Fix select element styling */
@@ -645,15 +749,18 @@ endblock %} {% block head_extra_styles %}
   }
 
   /* Override any remaining primary colors */
-  .text-primary-600, .text-primary-500 {
+  .text-primary-600,
+  .text-primary-500 {
     color: #3b82f6 !important; /* blue-500 */
   }
 
-  .bg-primary-600, .bg-primary-500 {
+  .bg-primary-600,
+  .bg-primary-500 {
     background-color: #3b82f6 !important; /* blue-500 */
   }
 
-  .bg-primary-700:hover, .hover\\:bg-primary-700:hover {
+  .bg-primary-700:hover,
+  .hover\\:bg-primary-700:hover {
     background-color: #2563eb !important; /* blue-600 */
   }
 
@@ -693,9 +800,7 @@ endblock %} {% block head_extra_styles %}
       <i class="fas fa-sync-alt"></i>
     </button>
 
-    <h1
-      class="text-3xl font-extrabold text-center text-gray-800 mb-4"
-    >
+    <h1 class="text-3xl font-extrabold text-center text-gray-800 mb-4">
       <img
         src="/static/icons/logo.png"
         alt="Gemini Balance Logo"
@@ -705,11 +810,13 @@ endblock %} {% block head_extra_styles %}
     </h1>
 
     <!-- Navigation Tabs -->
-    <div class="nav-buttons-container flex justify-center mb-8 overflow-x-auto gap-2">
+    <div
+      class="nav-buttons-container flex justify-center mb-8 overflow-x-auto gap-2"
+    >
       <a
         href="/config"
         class="main-nav-btn whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
-        style="background-color: #3b82f6 !important; color: #ffffff !important;"
+        style="background-color: #3b82f6 !important; color: #ffffff !important"
       >
         <i class="fas fa-cog"></i> 配置编辑
       </a>
@@ -734,49 +841,93 @@ endblock %} {% block head_extra_styles %}
       <button
         class="tab-btn active px-5 py-2 rounded-full font-medium text-sm transition-all duration-200"
         data-tab="api"
-        style="background-color: #3b82f6 !important; color: #ffffff !important; border: 2px solid #2563eb !important; box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.4), 0 2px 6px -1px rgba(59, 130, 246, 0.2) !important; transform: translateY(-2px) !important; font-weight: 600 !important;"
+        style="
+          background-color: #3b82f6 !important;
+          color: #ffffff !important;
+          border: 2px solid #2563eb !important;
+          box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.4),
+            0 2px 6px -1px rgba(59, 130, 246, 0.2) !important;
+          transform: translateY(-2px) !important;
+          font-weight: 600 !important;
+        "
       >
         API配置
       </button>
       <button
         class="tab-btn px-5 py-2 rounded-full font-medium text-sm transition-all duration-200"
         data-tab="model"
-        style="background-color: #f8fafc !important; color: #64748b !important; border: 2px solid #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important; font-weight: 500 !important;"
+        style="
+          background-color: #f8fafc !important;
+          color: #64748b !important;
+          border: 2px solid #e2e8f0 !important;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+          font-weight: 500 !important;
+        "
       >
         模型配置
       </button>
       <button
         class="tab-btn px-5 py-2 rounded-full font-medium text-sm transition-all duration-200"
         data-tab="tts"
-        style="background-color: #f8fafc !important; color: #64748b !important; border: 2px solid #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important; font-weight: 500 !important;"
+        style="
+          background-color: #f8fafc !important;
+          color: #64748b !important;
+          border: 2px solid #e2e8f0 !important;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+          font-weight: 500 !important;
+        "
       >
         TTS 配置
       </button>
       <button
         class="tab-btn px-5 py-2 rounded-full font-medium text-sm transition-all duration-200"
         data-tab="image"
-        style="background-color: #f8fafc !important; color: #64748b !important; border: 2px solid #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important; font-weight: 500 !important;"
+        style="
+          background-color: #f8fafc !important;
+          color: #64748b !important;
+          border: 2px solid #e2e8f0 !important;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+          font-weight: 500 !important;
+        "
       >
         图像生成
       </button>
       <button
         class="tab-btn px-5 py-2 rounded-full font-medium text-sm transition-all duration-200"
         data-tab="stream"
-        style="background-color: #f8fafc !important; color: #64748b !important; border: 2px solid #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important; font-weight: 500 !important;"
+        style="
+          background-color: #f8fafc !important;
+          color: #64748b !important;
+          border: 2px solid #e2e8f0 !important;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+          font-weight: 500 !important;
+        "
       >
         流式输出
       </button>
       <button
         class="tab-btn px-5 py-2 rounded-full font-medium text-sm transition-all duration-200"
         data-tab="scheduler"
-        style="background-color: #f8fafc !important; color: #64748b !important; border: 2px solid #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important; font-weight: 500 !important;"
+        style="
+          background-color: #f8fafc !important;
+          color: #64748b !important;
+          border: 2px solid #e2e8f0 !important;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+          font-weight: 500 !important;
+        "
       >
         定时任务
       </button>
       <button
         class="tab-btn px-5 py-2 rounded-full font-medium text-sm transition-all duration-200"
         data-tab="logging"
-        style="background-color: #f8fafc !important; color: #64748b !important; border: 2px solid #e2e8f0 !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important; font-weight: 500 !important;"
+        style="
+          background-color: #f8fafc !important;
+          color: #64748b !important;
+          border: 2px solid #e2e8f0 !important;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+          font-weight: 500 !important;
+        "
       >
         日志配置
       </button>
@@ -898,11 +1049,48 @@ endblock %} {% block head_extra_styles %}
           />
           <small class="text-gray-500 mt-1 block">Gemini API的基础URL</small>
         </div>
- 
-        <!-- Vertex API密钥列表 -->
+
+        <!-- 自定义Headers -->
         <div class="mb-6">
-          <label for="VERTEX_API_KEYS" class="block font-semibold mb-2 text-gray-700"
-            >Vertex API密钥列表</label
+          <label
+            for="CUSTOM_HEADERS"
+            class="block font-semibold mb-2 text-gray-700"
+            >自定义Headers</label
+          >
+          <div
+            class="bg-white rounded-lg border border-gray-200 p-4 mb-2 space-y-3"
+            id="CUSTOM_HEADERS_container"
+            style="
+              background-color: rgba(255, 255, 255, 0.95);
+              border: 1px solid rgba(0, 0, 0, 0.12);
+              color: #374151;
+            "
+          >
+            <!-- 键值对将在这里动态添加 -->
+            <div class="text-gray-500 text-sm italic">
+              添加自定义请求头，例如 X-Api-Key: your-key
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <button
+              type="button"
+              class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
+              id="addCustomHeaderBtn"
+            >
+              <i class="fas fa-plus"></i> 添加Header
+            </button>
+          </div>
+          <small class="text-gray-500 mt-1 block"
+            >在这里添加的键值对将被添加到所有出站API请求的Header中。</small
+          >
+        </div>
+
+        <!-- Vertex Express API密钥列表 -->
+        <div class="mb-6">
+          <label
+            for="VERTEX_API_KEYS"
+            class="block font-semibold mb-2 text-gray-700"
+            >Vertex Express API密钥列表</label
           >
           <div class="array-container" id="VERTEX_API_KEYS_container">
             <!-- 数组项将在这里动态添加 -->
@@ -927,10 +1115,12 @@ endblock %} {% block head_extra_styles %}
             >Vertex AI Platform API密钥列表。点击按钮可批量添加或删除。</small
           >
         </div>
- 
+
         <!-- Vertex Express API基础URL -->
         <div class="mb-6">
-          <label for="VERTEX_EXPRESS_BASE_URL" class="block font-semibold mb-2 text-gray-700"
+          <label
+            for="VERTEX_EXPRESS_BASE_URL"
+            class="block font-semibold mb-2 text-gray-700"
             >Vertex Express API基础URL</label
           >
           <input
@@ -940,30 +1130,32 @@ endblock %} {% block head_extra_styles %}
             placeholder="https://aiplatform.googleapis.com/v1beta1/publishers/google/models"
             class="w-full px-4 py-3 rounded-lg form-input-themed"
           />
-          <small class="text-gray-500 mt-1 block">Vertex Express API的基础URL</small>
+          <small class="text-gray-500 mt-1 block"
+            >Vertex Express API的基础URL</small
+          >
         </div>
         <!-- 智能路由配置 -->
         <div class="mb-6">
           <div class="flex items-center justify-between">
-              <label
-                      for="URL_NORMALIZATION_ENABLED"
-                      class="font-semibold text-gray-700"
+            <label
+              for="URL_NORMALIZATION_ENABLED"
+              class="font-semibold text-gray-700"
               >启用智能路由映射</label
-              >
-              <div
-                      class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"
-              >
-                  <input
-                          type="checkbox"
-                          name="URL_NORMALIZATION_ENABLED"
-                          id="URL_NORMALIZATION_ENABLED"
-                          class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                  />
-                  <label
-                          for="URL_NORMALIZATION_ENABLED"
-                          class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                  ></label>
-              </div>
+            >
+            <div
+              class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"
+            >
+              <input
+                type="checkbox"
+                name="URL_NORMALIZATION_ENABLED"
+                id="URL_NORMALIZATION_ENABLED"
+                class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+              />
+              <label
+                for="URL_NORMALIZATION_ENABLED"
+                class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+              ></label>
+            </div>
           </div>
           <small class="text-gray-500 mt-1 block">
             自动客户端请求的url拼接为正确格式（仅保证正常聊天，出现问题请关闭）
@@ -1057,28 +1249,28 @@ endblock %} {% block head_extra_styles %}
         <!-- 代理使用策略 -->
         <div class="mb-6">
           <div class="flex items-center justify-between">
-              <label
-                      for="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
-                      class="font-semibold text-gray-700"
+            <label
+              for="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
+              class="font-semibold text-gray-700"
               >是否开启固定代理策略</label
-              >
-              <div
-                      class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"
-              >
-                  <input
-                          type="checkbox"
-                          name="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
-                          id="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
-                          class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                  />
-                  <label
-                          for="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
-                          class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                  ></label>
-              </div>
+            >
+            <div
+              class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"
+            >
+              <input
+                type="checkbox"
+                name="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
+                id="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
+                class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+              />
+              <label
+                for="PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY"
+                class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+              ></label>
+            </div>
           </div>
           <small class="text-gray-500 mt-1 block"
-          >开启后，对于每一个API_KEY将根据算法从代理列表中选取同一个代理IP，防止一个API_KEY同时被多个IP访问，也同时防止了一个IP访问了过多的API_KEY。</small
+            >开启后，对于每一个API_KEY将根据算法从代理列表中选取同一个代理IP，防止一个API_KEY同时被多个IP访问，也同时防止了一个IP访问了过多的API_KEY。</small
           >
         </div>
       </div>
@@ -1377,8 +1569,8 @@ endblock %} {% block head_extra_styles %}
           </div>
         </div>
       </div>
- 
-       <!-- TTS配置 -->
+
+      <!-- TTS配置 -->
       <div class="config-section" id="tts-section">
         <h2
           class="text-xl font-bold mb-6 pb-3 border-b flex items-center gap-2 text-gray-800 border-violet-300 border-opacity-30"
@@ -1396,15 +1588,21 @@ endblock %} {% block head_extra_styles %}
             name="TTS_MODEL"
             class="w-full px-4 py-3 rounded-lg form-select-themed"
           >
-            <option value="gemini-2.5-flash-preview-tts">gemini-2.5-flash-preview-tts</option>
-            <option value="gemini-2.5-pro-preview-tts">gemini-2.5-pro-preview-tts</option>
+            <option value="gemini-2.5-flash-preview-tts">
+              gemini-2.5-flash-preview-tts
+            </option>
+            <option value="gemini-2.5-pro-preview-tts">
+              gemini-2.5-pro-preview-tts
+            </option>
           </select>
           <small class="text-gray-500 mt-1 block">用于TTS的模型</small>
         </div>
 
         <!-- TTS 语音名称 -->
         <div class="mb-6">
-          <label for="TTS_VOICE_NAME" class="block font-semibold mb-2 text-gray-700"
+          <label
+            for="TTS_VOICE_NAME"
+            class="block font-semibold mb-2 text-gray-700"
             >TTS 语音名称</label
           >
           <select
@@ -1443,7 +1641,9 @@ endblock %} {% block head_extra_styles %}
             <option value="Sadaltager">Sadaltager (博学)</option>
             <option value="Sulafat">Sulafat (温暖)</option>
           </select>
-          <small class="text-gray-500 mt-1 block">TTS 的语音名称，控制风格、语调、口音和节奏</small>
+          <small class="text-gray-500 mt-1 block"
+            >TTS 的语音名称，控制风格、语调、口音和节奏</small
+          >
         </div>
 
         <!-- TTS 语速 -->
@@ -1464,9 +1664,9 @@ endblock %} {% block head_extra_styles %}
         </div>
       </div>
 
-       <!-- 图像生成相关配置 -->
-       <div class="config-section" id="image-section">
-         <h2
+      <!-- 图像生成相关配置 -->
+      <div class="config-section" id="image-section">
+        <h2
           class="text-xl font-bold mb-6 pb-3 border-b flex items-center gap-2 text-gray-800 border-violet-300 border-opacity-30"
         >
           <i class="fas fa-image text-violet-400"></i> 图像生成配置
@@ -1601,6 +1801,25 @@ endblock %} {% block head_extra_styles %}
             class="w-full px-4 py-3 rounded-lg sensitive-input form-input-themed"
           />
           <small class="text-gray-500 mt-1 block">Cloudflare图床的认证码</small>
+        </div>
+
+        <!-- Cloudflare上传文件夹 -->
+        <div class="mb-6 provider-config" data-provider="cloudflare_imgbed">
+          <label
+            for="CLOUDFLARE_IMGBED_UPLOAD_FOLDER"
+            class="block font-semibold mb-2 text-gray-700"
+            >Cloudflare上传文件夹</label
+          >
+          <input
+            type="text"
+            id="CLOUDFLARE_IMGBED_UPLOAD_FOLDER"
+            name="CLOUDFLARE_IMGBED_UPLOAD_FOLDER"
+            placeholder=""
+            class="w-full px-4 py-3 rounded-lg form-input-themed"
+          />
+          <small class="text-gray-500 mt-1 block"
+            >Cloudflare图床的上传文件夹路径（可选）</small
+          >
         </div>
       </div>
 
@@ -1956,12 +2175,17 @@ endblock %} {% block head_extra_styles %}
       </div>
 
       <!-- Action Buttons -->
-      <div class="flex flex-col md:flex-row justify-center gap-4 mt-8 pt-4 pb-2">
+      <div
+        class="flex flex-col md:flex-row justify-center gap-4 mt-8 pt-4 pb-2"
+      >
         <button
           type="button"
           id="saveBtn"
           class="action-btn text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300 hover:shadow-lg flex items-center justify-center gap-2"
-          style="background-color: #3b82f6 !important; color: #ffffff !important;"
+          style="
+            background-color: #3b82f6 !important;
+            color: #ffffff !important;
+          "
         >
           <i class="fas fa-save"></i> 保存配置
         </button>
@@ -1969,7 +2193,10 @@ endblock %} {% block head_extra_styles %}
           type="button"
           id="resetBtn"
           class="action-btn bg-gradient-to-r from-gray-600 to-gray-700 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300 hover:shadow-lg flex items-center justify-center gap-2"
-          style="background-color: #6b7280 !important; color: #ffffff !important;"
+          style="
+            background-color: #6b7280 !important;
+            color: #ffffff !important;
+          "
         >
           <i class="fas fa-undo"></i> 重置配置
         </button>
@@ -2230,8 +2457,8 @@ endblock %} {% block head_extra_styles %}
     </div>
   </div>
 </div>
- 
-<!-- Vertex API Key Add Modal -->
+
+<!-- Vertex Express API Key Add Modal -->
 <div id="vertexApiKeyModal" class="modal">
   <div
     class="w-full max-w-lg mx-auto rounded-2xl shadow-2xl overflow-hidden animate-fade-in"
@@ -2243,7 +2470,9 @@ endblock %} {% block head_extra_styles %}
   >
     <div class="p-6">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-gray-800">批量添加 Vertex API 密钥</h2>
+        <h2 class="text-xl font-bold text-gray-800">
+          批量添加 Vertex Express API 密钥
+        </h2>
         <button
           id="closeVertexApiKeyModalBtn"
           class="text-gray-300 hover:text-gray-800 text-xl"
@@ -2252,12 +2481,13 @@ endblock %} {% block head_extra_styles %}
         </button>
       </div>
       <p class="text-gray-300 mb-4">
-        每行粘贴一个或多个密钥，将自动提取有效密钥 (格式: AQ.开头，共53位) 并去重。
+        每行粘贴一个或多个密钥，将自动提取有效密钥 (格式: AQ.开头，共53位)
+        并去重。
       </p>
       <textarea
         id="vertexApiKeyBulkInput"
         rows="10"
-        placeholder="在此处粘贴 Vertex API 密钥..."
+        placeholder="在此处粘贴 Vertex Express API 密钥..."
         class="w-full px-4 py-3 rounded-lg font-mono text-sm form-input-themed"
       ></textarea>
       <div class="flex justify-end gap-3 mt-6">
@@ -2279,8 +2509,8 @@ endblock %} {% block head_extra_styles %}
     </div>
   </div>
 </div>
- 
-<!-- Bulk Delete Vertex API Key Modal -->
+
+<!-- Bulk Delete Vertex Express API Key Modal -->
 <div id="bulkDeleteVertexApiKeyModal" class="modal">
   <div
     class="w-full max-w-lg mx-auto rounded-2xl shadow-2xl overflow-hidden animate-fade-in"
@@ -2292,7 +2522,9 @@ endblock %} {% block head_extra_styles %}
   >
     <div class="p-6">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-gray-800">批量删除 Vertex API 密钥</h2>
+        <h2 class="text-xl font-bold text-gray-800">
+          批量删除 Vertex Express API 密钥
+        </h2>
         <button
           id="closeBulkDeleteVertexModalBtn"
           class="text-gray-300 hover:text-gray-800 text-xl"
@@ -2306,7 +2538,7 @@ endblock %} {% block head_extra_styles %}
       <textarea
         id="bulkDeleteVertexApiKeyInput"
         rows="10"
-        placeholder="在此处粘贴要删除的 Vertex API 密钥..."
+        placeholder="在此处粘贴要删除的 Vertex Express API 密钥..."
         class="w-full px-4 py-3 rounded-lg font-mono text-sm form-input-themed"
       ></textarea>
       <div class="flex justify-end gap-3 mt-6">
@@ -2328,7 +2560,7 @@ endblock %} {% block head_extra_styles %}
     </div>
   </div>
 </div>
- 
+
 <!-- Model Helper Modal -->
 <div id="modelHelperModal" class="modal">
   <div
@@ -2456,8 +2688,10 @@ endblock %} {% block head_extra_styles %}
       input.addEventListener("focus", function () {
         const parentItem = this.closest(".map-item");
         if (parentItem) {
-          parentItem.style.backgroundColor = "rgba(243, 244, 246, 1)"; /* gray-100 */
-          parentItem.style.borderColor = "rgba(59, 130, 246, 0.5)"; /* blue-500 */
+          parentItem.style.backgroundColor =
+            "rgba(243, 244, 246, 1)"; /* gray-100 */
+          parentItem.style.borderColor =
+            "rgba(59, 130, 246, 0.5)"; /* blue-500 */
         }
       });
 

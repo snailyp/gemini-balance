@@ -4,7 +4,7 @@
 
 import datetime
 import json
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Type, get_args, get_origin
 
 from pydantic import ValidationError, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings
@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     # 智能路由配置
     URL_NORMALIZATION_ENABLED: bool = False  # 是否启用智能路由映射功能
 
+    # 自定义 Headers
+    CUSTOM_HEADERS: Dict[str, str] = {}
+
     # 模型相关配置
     SEARCH_MODELS: List[str] = ["gemini-2.0-flash-exp"]
     IMAGE_MODELS: List[str] = ["gemini-2.0-flash-exp"]
@@ -90,6 +93,7 @@ class Settings(BaseSettings):
     PICGO_API_KEY: str = ""
     CLOUDFLARE_IMGBED_URL: str = ""
     CLOUDFLARE_IMGBED_AUTH_CODE: str = ""
+    CLOUDFLARE_IMGBED_UPLOAD_FOLDER: str = ""
 
     # 流式输出优化器配置
     STREAM_OPTIMIZER_ENABLED: bool = False
@@ -137,86 +141,106 @@ def _parse_db_value(key: str, db_value: str, target_type: Type) -> Any:
 
     logger = get_config_logger()
     try:
-        # 处理 List[str]
-        if target_type == List[str]:
-            try:
-                parsed = json.loads(db_value)
-                if isinstance(parsed, list):
-                    return [str(item) for item in parsed]
-            except json.JSONDecodeError:
+        origin_type = get_origin(target_type)
+        args = get_args(target_type)
+
+        # 处理 List 类型
+        if origin_type is list:
+            # 处理 List[str]
+            if args and args[0] == str:
+                try:
+                    parsed = json.loads(db_value)
+                    if isinstance(parsed, list):
+                        return [str(item) for item in parsed]
+                except json.JSONDecodeError:
+                    return [item.strip() for item in db_value.split(",") if item.strip()]
+                logger.warning(
+                    f"Could not parse '{db_value}' as List[str] for key '{key}', falling back to comma split or empty list."
+                )
                 return [item.strip() for item in db_value.split(",") if item.strip()]
-            logger.warning(
-                f"Could not parse '{db_value}' as List[str] for key '{key}', falling back to comma split or empty list."
-            )
-            return [item.strip() for item in db_value.split(",") if item.strip()]
-        # 处理 Dict[str, float]
-        elif target_type == Dict[str, float]:
-            parsed_dict = {}
-            try:
-                parsed = json.loads(db_value)
-                if isinstance(parsed, dict):
-                    parsed_dict = {str(k): float(v) for k, v in parsed.items()}
-                else:
-                    logger.warning(
-                        f"Parsed DB value for key '{key}' is not a dictionary type. Value: {db_value}"
-                    )
-            except (json.JSONDecodeError, ValueError, TypeError) as e1:
-                if isinstance(e1, json.JSONDecodeError) and "'" in db_value:
-                    logger.warning(
-                        f"Failed initial JSON parse for key '{key}'. Attempting to replace single quotes. Error: {e1}"
-                    )
-                    try:
-                        corrected_db_value = db_value.replace("'", '"')
-                        parsed = json.loads(corrected_db_value)
-                        if isinstance(parsed, dict):
-                            parsed_dict = {str(k): float(v) for k, v in parsed.items()}
+            # 处理 List[Dict[str, str]]
+            elif args and get_origin(args[0]) is dict:
+                try:
+                    parsed = json.loads(db_value)
+                    if isinstance(parsed, list):
+                        valid = all(
+                            isinstance(item, dict)
+                            and all(isinstance(k, str) for k in item.keys())
+                            and all(isinstance(v, str) for v in item.values())
+                            for item in parsed
+                        )
+                        if valid:
+                            return parsed
                         else:
                             logger.warning(
-                                f"Parsed DB value (after quote replacement) for key '{key}' is not a dictionary type. Value: {corrected_db_value}"
+                                f"Invalid structure in List[Dict[str, str]] for key '{key}'. Value: {db_value}"
                             )
-                    except (json.JSONDecodeError, ValueError, TypeError) as e2:
-                        logger.error(
-                            f"Could not parse '{db_value}' as Dict[str, float] for key '{key}' even after replacing quotes: {e2}. Returning empty dict."
-                        )
-                else:
-                    logger.error(
-                        f"Could not parse '{db_value}' as Dict[str, float] for key '{key}': {e1}. Returning empty dict."
-                    )
-            return parsed_dict
-        # 处理 List[Dict[str, str]]
-        elif target_type == List[Dict[str, str]]:
-            try:
-                parsed = json.loads(db_value)
-                if isinstance(parsed, list):
-                    # 验证列表中的每个元素是否为字典，并且键和值都是字符串
-                    valid = all(
-                        isinstance(item, dict)
-                        and all(isinstance(k, str) for k in item.keys())
-                        and all(isinstance(v, str) for v in item.values())
-                        for item in parsed
-                    )
-                    if valid:
-                        return parsed
+                            return []
                     else:
                         logger.warning(
-                            f"Invalid structure in List[Dict[str, str]] for key '{key}'. Value: {db_value}"
+                            f"Parsed DB value for key '{key}' is not a list type. Value: {db_value}"
                         )
                         return []
-                else:
-                    logger.warning(
-                        f"Parsed DB value for key '{key}' is not a list type. Value: {db_value}"
+                except json.JSONDecodeError:
+                    logger.error(
+                        f"Could not parse '{db_value}' as JSON for List[Dict[str, str]] for key '{key}'. Returning empty list."
                     )
                     return []
-            except json.JSONDecodeError:
-                logger.error(
-                    f"Could not parse '{db_value}' as JSON for List[Dict[str, str]] for key '{key}'. Returning empty list."
-                )
-                return []
-            except Exception as e:
-                logger.error(
-                    f"Error parsing List[Dict[str, str]] for key '{key}': {e}. Value: {db_value}. Returning empty list."
-                )
-                return []
+                except Exception as e:
+                    logger.error(
+                        f"Error parsing List[Dict[str, str]] for key '{key}': {e}. Value: {db_value}. Returning empty list."
+                    )
+                    return []
+        # 处理 Dict 类型
+        elif origin_type is dict:
+            # 处理 Dict[str, str]
+            if args and args == (str, str):
+                parsed_dict = {}
+                try:
+                    parsed = json.loads(db_value)
+                    if isinstance(parsed, dict):
+                        parsed_dict = {str(k): str(v) for k, v in parsed.items()}
+                    else:
+                        logger.warning(
+                            f"Parsed DB value for key '{key}' is not a dictionary type. Value: {db_value}"
+                        )
+                except json.JSONDecodeError:
+                     logger.error(f"Could not parse '{db_value}' as Dict[str, str] for key '{key}'. Returning empty dict.")
+                return parsed_dict
+            # 处理 Dict[str, float]
+            elif args and args == (str, float):
+                parsed_dict = {}
+                try:
+                    parsed = json.loads(db_value)
+                    if isinstance(parsed, dict):
+                        parsed_dict = {str(k): float(v) for k, v in parsed.items()}
+                    else:
+                        logger.warning(
+                            f"Parsed DB value for key '{key}' is not a dictionary type. Value: {db_value}"
+                        )
+                except (json.JSONDecodeError, ValueError, TypeError) as e1:
+                    if isinstance(e1, json.JSONDecodeError) and "'" in db_value:
+                        logger.warning(
+                            f"Failed initial JSON parse for key '{key}'. Attempting to replace single quotes. Error: {e1}"
+                        )
+                        try:
+                            corrected_db_value = db_value.replace("'", '"')
+                            parsed = json.loads(corrected_db_value)
+                            if isinstance(parsed, dict):
+                                parsed_dict = {str(k): float(v) for k, v in parsed.items()}
+                            else:
+                                logger.warning(
+                                    f"Parsed DB value (after quote replacement) for key '{key}' is not a dictionary type. Value: {corrected_db_value}"
+                                )
+                        except (json.JSONDecodeError, ValueError, TypeError) as e2:
+                            logger.error(
+                                f"Could not parse '{db_value}' as Dict[str, float] for key '{key}' even after replacing quotes: {e2}. Returning empty dict."
+                            )
+                    else:
+                        logger.error(
+                            f"Could not parse '{db_value}' as Dict[str, float] for key '{key}': {e1}. Returning empty dict."
+                        )
+                return parsed_dict
         # 处理 bool
         elif target_type == bool:
             return db_value.lower() in ("true", "1", "yes", "on")
@@ -305,18 +329,12 @@ async def sync_initial_settings():
                         if parsed_db_value != memory_value:
                             # 检查类型是否匹配，以防解析函数返回了不兼容的类型
                             type_match = False
-                            if target_type == List[str] and isinstance(
-                                parsed_db_value, list
-                            ):
-                                type_match = True
-                            elif target_type == Dict[str, float] and isinstance(
-                                parsed_db_value, dict
-                            ):
-                                type_match = True
-                            elif target_type not in (
-                                List[str],
-                                Dict[str, float],
-                            ) and isinstance(parsed_db_value, target_type):
+                            origin_type = get_origin(target_type)
+                            if origin_type:  # It's a generic type
+                                if isinstance(parsed_db_value, origin_type):
+                                    type_match = True
+                            # It's a non-generic type, or a specific generic we want to handle
+                            elif isinstance(parsed_db_value, target_type):
                                 type_match = True
 
                             if type_match:

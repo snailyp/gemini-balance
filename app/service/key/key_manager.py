@@ -34,7 +34,7 @@ class KeyManager:
             return next(self.key_cycle)
 
     async def get_next_vertex_key(self) -> str:
-        """获取下一个 Vertex API key"""
+        """获取下一个 Vertex Express API key"""
         async with self.vertex_key_cycle_lock:
             return next(self.vertex_key_cycle)
 
@@ -98,7 +98,7 @@ class KeyManager:
                 return current_key
 
     async def get_next_working_vertex_key(self) -> str:
-        """获取下一可用的 Vertex API key"""
+        """获取下一可用的 Vertex Express API key"""
         initial_key = await self.get_next_vertex_key()
         current_key = initial_key
 
@@ -124,12 +124,12 @@ class KeyManager:
             return ""
 
     async def handle_vertex_api_failure(self, api_key: str, retries: int) -> str:
-        """处理 Vertex API 调用失败"""
+        """处理 Vertex Express API 调用失败"""
         async with self.vertex_failure_count_lock:
             self.vertex_key_failure_counts[api_key] += 1
             if self.vertex_key_failure_counts[api_key] >= self.MAX_FAILURES:
                 logger.warning(
-                    f"Vertex API key {api_key} has failed {self.MAX_FAILURES} times"
+                    f"Vertex Express API key {api_key} has failed {self.MAX_FAILURES} times"
                 )
 
     def get_fail_count(self, key: str) -> int:
@@ -156,7 +156,7 @@ class KeyManager:
         return {"valid_keys": valid_keys, "invalid_keys": invalid_keys}
 
     async def get_vertex_keys_by_status(self) -> dict:
-        """获取分类后的 Vertex API key 列表，包括失败次数"""
+        """获取分类后的 Vertex Express API key 列表，包括失败次数"""
         valid_keys = {}
         invalid_keys = {}
 
@@ -178,8 +178,7 @@ class KeyManager:
         if self.api_keys:
             return self.api_keys[0]
         if not self.api_keys:
-            logger.warning(
-                "API key list is empty, cannot get first valid key.")
+            logger.warning("API key list is empty, cannot get first valid key.")
             return ""
         return self.api_keys[0]
 
@@ -214,7 +213,7 @@ async def get_key_manager_instance(
                 )
             if vertex_api_keys is None:
                 raise ValueError(
-                    "Vertex API keys are required to initialize or re-initialize the KeyManager instance."
+                    "Vertex Express API keys are required to initialize or re-initialize the KeyManager instance."
                 )
 
             if not api_keys:
@@ -223,12 +222,12 @@ async def get_key_manager_instance(
                 )
             if not vertex_api_keys:
                 logger.warning(
-                    "Initializing KeyManager with an empty list of Vertex API keys."
+                    "Initializing KeyManager with an empty list of Vertex Express API keys."
                 )
 
             _singleton_instance = KeyManager(api_keys, vertex_api_keys)
             logger.info(
-                f"KeyManager instance created/re-created with {len(api_keys)} API keys and {len(vertex_api_keys)} Vertex API keys."
+                f"KeyManager instance created/re-created with {len(api_keys)} API keys and {len(vertex_api_keys)} Vertex Express API keys."
             )
 
             # 1. 恢复失败计数
@@ -253,8 +252,7 @@ async def get_key_manager_instance(
                 _singleton_instance.vertex_key_failure_counts = (
                     current_vertex_failure_counts
                 )
-                logger.info(
-                    "Inherited failure counts for applicable Vertex keys.")
+                logger.info("Inherited failure counts for applicable Vertex keys.")
             _preserved_vertex_failure_counts = None
 
             # 2. 调整 key_cycle 的起始点
@@ -351,7 +349,7 @@ async def get_key_manager_instance(
                             break
                 except ValueError:
                     logger.warning(
-                        f"Preserved next key '{_preserved_vertex_next_key_in_cycle}' not found in preserved old Vertex API keys. "
+                        f"Preserved next key '{_preserved_vertex_next_key_in_cycle}' not found in preserved old Vertex Express API keys. "
                         "New cycle will start from the beginning of the new list."
                     )
                 except Exception as e:
@@ -372,12 +370,12 @@ async def get_key_manager_instance(
                     )
                 except ValueError:
                     logger.warning(
-                        f"Determined start key '{start_key_for_new_vertex_cycle}' not found in new Vertex API keys during cycle advancement. "
+                        f"Determined start key '{start_key_for_new_vertex_cycle}' not found in new Vertex Express API keys during cycle advancement. "
                         "New cycle will start from the beginning."
                     )
                 except StopIteration:
                     logger.error(
-                        "StopIteration while advancing Vertex key cycle, implies empty new Vertex API key list previously missed."
+                        "StopIteration while advancing Vertex key cycle, implies empty new Vertex Express API key list previously missed."
                     )
                 except Exception as e:
                     logger.error(
@@ -386,11 +384,11 @@ async def get_key_manager_instance(
             else:
                 if _singleton_instance.vertex_api_keys:
                     logger.info(
-                        "New Vertex key cycle will start from the beginning of the new Vertex API key list (no specific start key determined or needed)."
+                        "New Vertex key cycle will start from the beginning of the new Vertex Express API key list (no specific start key determined or needed)."
                     )
                 else:
                     logger.info(
-                        "New Vertex key cycle not applicable as the new Vertex API key list is empty."
+                        "New Vertex key cycle not applicable as the new Vertex Express API key list is empty."
                     )
 
             # 清理所有保存的状态
@@ -411,11 +409,15 @@ async def reset_key_manager_instance():
         if _singleton_instance:
             # 1. 保存失败计数
             _preserved_failure_counts = _singleton_instance.key_failure_counts.copy()
-            _preserved_vertex_failure_counts = _singleton_instance.vertex_key_failure_counts.copy()
+            _preserved_vertex_failure_counts = (
+                _singleton_instance.vertex_key_failure_counts.copy()
+            )
 
             # 2. 保存旧的 API keys 列表
             _preserved_old_api_keys_for_reset = _singleton_instance.api_keys.copy()
-            _preserved_vertex_old_api_keys_for_reset = _singleton_instance.vertex_api_keys.copy()
+            _preserved_vertex_old_api_keys_for_reset = (
+                _singleton_instance.vertex_api_keys.copy()
+            )
 
             # 3. 保存 key_cycle 的下一个 key 提示
             try:
@@ -431,8 +433,7 @@ async def reset_key_manager_instance():
                 )
                 _preserved_next_key_in_cycle = None
             except Exception as e:
-                logger.error(
-                    f"Error preserving next key hint during reset: {e}")
+                logger.error(f"Error preserving next key hint during reset: {e}")
                 _preserved_next_key_in_cycle = None
 
             # 4. 保存 vertex_key_cycle 的下一个 key 提示
@@ -449,8 +450,7 @@ async def reset_key_manager_instance():
                 )
                 _preserved_vertex_next_key_in_cycle = None
             except Exception as e:
-                logger.error(
-                    f"Error preserving next key hint during reset: {e}")
+                logger.error(f"Error preserving next key hint during reset: {e}")
                 _preserved_vertex_next_key_in_cycle = None
 
             _singleton_instance = None

@@ -817,58 +817,11 @@ function toggleSection(header, sectionId) {
   }
 }
 
-// 筛选有效密钥（根据失败次数阈值）并更新批量操作状态
+// filterValidKeys 函数已被 filterAndSearchValidKeys 替代，此函数保留为空或可移除
 function filterValidKeys() {
-  const thresholdInput = document.getElementById("failCountThreshold");
-  const validKeysList = document.getElementById("validKeys"); // Get the UL element
-  if (!validKeysList) return; // Exit if the list doesn't exist
-
-  const validKeyItems = validKeysList.querySelectorAll("li[data-key]"); // Select li elements within the list
-  // 读取阈值，如果输入无效或为空，则默认为0（不过滤）
-  const threshold = parseInt(thresholdInput.value, 10);
-  const filterThreshold = isNaN(threshold) || threshold < 0 ? 0 : threshold;
-  let hasVisibleItems = false;
-
-  validKeyItems.forEach((item) => {
-    // 确保只处理包含 data-fail-count 的 li 元素
-    if (item.dataset.failCount !== undefined) {
-      const failCount = parseInt(item.dataset.failCount, 10);
-      // 如果失败次数大于等于阈值，则显示，否则隐藏
-      if (failCount >= filterThreshold) {
-        item.style.display = "flex"; // 使用 flex 因为 li 现在是 flex 容器
-        hasVisibleItems = true;
-      } else {
-        item.style.display = "none"; // 隐藏
-        // 如果隐藏了一个项，取消其选中状态
-        const checkbox = item.querySelector(".key-checkbox");
-        if (checkbox && checkbox.checked) {
-          checkbox.checked = false;
-        }
-      }
-    }
-  });
-
-  // 更新有效密钥的批量操作状态和全选复选框
-  updateBatchActions("valid");
-
-  // 处理"暂无有效密钥"消息
-  const noMatchMsgId = "no-valid-keys-msg";
-  let noMatchMsg = validKeysList.querySelector(`#${noMatchMsgId}`);
-  const initialKeyCount = validKeysList.querySelectorAll("li[data-key]").length; // 获取初始密钥数量
-
-  if (!hasVisibleItems && initialKeyCount > 0) {
-    // 仅当初始有密钥但现在都不可见时显示
-    if (!noMatchMsg) {
-      noMatchMsg = document.createElement("li");
-      noMatchMsg.id = noMatchMsgId;
-      noMatchMsg.className = "text-center text-gray-500 py-4 col-span-full";
-      noMatchMsg.textContent = "没有符合条件的有效密钥";
-      validKeysList.appendChild(noMatchMsg);
-    }
-    noMatchMsg.style.display = "";
-  } else if (noMatchMsg) {
-    noMatchMsg.style.display = "none";
-  }
+  // This function is now handled by filterAndSearchValidKeys
+  // Kept for now to avoid breaking any potential legacy calls, but should be removed later.
+  filterAndSearchValidKeys();
 }
 
 // --- Initialization Helper Functions ---

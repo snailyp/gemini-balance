@@ -15,6 +15,7 @@ ENV TOOLS_CODE_EXECUTION_ENABLED=false
 ENV IMAGE_MODELS='["gemini-2.0-flash-exp"]'
 ENV SEARCH_MODELS='["gemini-2.0-flash-exp","gemini-2.0-pro-exp"]'
 ENV URL_NORMALIZATION_ENABLED=false
+ENV CLOUDFLARE_IMGBED_UPLOAD_FOLDER=""
 
 # Expose port
 EXPOSE 8000

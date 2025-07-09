@@ -78,6 +78,26 @@ def _get_safety_settings(model: str) -> List[Dict[str, str]]:
     return settings.SAFETY_SETTINGS
 
 
+def _filter_empty_parts(contents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Filters out contents with empty or invalid parts."""
+    if not contents:
+        return []
+
+    filtered_contents = []
+    for content in contents:
+        if not content or "parts" not in content or not isinstance(content.get("parts"), list):
+            continue
+
+        valid_parts = [part for part in content["parts"] if isinstance(part, dict) and part]
+
+        if valid_parts:
+            new_content = content.copy()
+            new_content["parts"] = valid_parts
+            filtered_contents.append(new_content)
+
+    return filtered_contents
+
+
 def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
     """构建请求payload"""
     request_dict = request.model_dump()
@@ -87,7 +107,7 @@ def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
             request_dict["generationConfig"].pop("maxOutputTokens")
     
     payload = {
-        "contents": request_dict.get("contents", []),
+        "contents": _filter_empty_parts(request_dict.get("contents", [])),
         "tools": _build_tools(model, request_dict),
         "safetySettings": _get_safety_settings(model),
         "generationConfig": request_dict.get("generationConfig"),
@@ -178,6 +198,54 @@ class GeminiChatService:
                 gemini_key=api_key,
                 model_name=model,
                 error_type="gemini-chat-non-stream",
+                error_log=error_log_msg,
+                error_code=status_code,
+                request_msg=payload
+            )
+            raise e
+        finally:
+            end_time = time.perf_counter()
+            latency_ms = int((end_time - start_time) * 1000)
+            await add_request_log(
+                model_name=model,
+                api_key=api_key,
+                is_success=is_success,
+                status_code=status_code,
+                latency_ms=latency_ms,
+                request_time=request_datetime
+            )
+
+    async def count_tokens(
+        self, model: str, request: GeminiRequest, api_key: str
+    ) -> Dict[str, Any]:
+        """计算token数量"""
+        # countTokens API只需要contents
+        payload = {"contents": _filter_empty_parts(request.model_dump().get("contents", []))}
+        start_time = time.perf_counter()
+        request_datetime = datetime.datetime.now()
+        is_success = False
+        status_code = None
+        response = None
+
+        try:
+            response = await self.api_client.count_tokens(payload, model, api_key)
+            is_success = True
+            status_code = 200
+            return response
+        except Exception as e:
+            is_success = False
+            error_log_msg = str(e)
+            logger.error(f"Count tokens API call failed with error: {error_log_msg}")
+            match = re.search(r"status code (\d+)", error_log_msg)
+            if match:
+                status_code = int(match.group(1))
+            else:
+                status_code = 500
+
+            await add_error_log(
+                gemini_key=api_key,
+                model_name=model,
+                error_type="gemini-count-tokens",
                 error_log=error_log_msg,
                 error_code=status_code,
                 request_msg=payload

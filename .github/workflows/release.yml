@@ -3,7 +3,7 @@ name: Publish Release
 on:
   push:
     tags:
-      - 'v*' # 当推送以 "v" 开头的标签时触发（如 v1.0.0, v2.1.0）
+      - "v*" # 当推送以 "v" 开头的标签时触发（如 v1.0.0, v2.1.0）
 
 jobs:
   update-release-draft:
@@ -15,8 +15,17 @@ jobs:
       # Step 1: 检出代码库
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      # Step 2: 自动生成 Release
+      # Step 2: 自动生成 Release Notes
+      - name: Generate release notes
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Step 3: 自动生成 Release
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -25,15 +34,16 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           release_name: ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: false
-      
-      # Step 3: 可选，构建zip文件
+
+      # Step 4: 可选，构建zip文件
       - name: Create ZIP file
         run: |
           zip -r blan.zip . -x "*.git*" "*.github*" "*.env*" "logs/*" "tests/*"
 
-      # Step 4: 可选，上传构建文件
+      # Step 5: 可选，上传构建文件
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
