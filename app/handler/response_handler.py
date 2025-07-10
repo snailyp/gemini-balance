@@ -39,13 +39,13 @@ class GeminiResponseHandler(ResponseHandler):
 def _handle_openai_stream_response(
     response: Dict[str, Any], model: str, finish_reason: str, usage_metadata: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
-    text, tool_calls, _ = _extract_result(
+    text, reasoning_content, tool_calls, _ = _extract_result(
         response, model, stream=True, gemini_format=False
     )
-    if not text and not tool_calls:
+    if not text and not tool_calls and not reasoning_content:
         delta = {}
     else:
-        delta = {"content": text, "role": "assistant"}
+        delta = {"content": text, "reasoning_content": reasoning_content, "role": "assistant"}
         if tool_calls:
             delta["tool_calls"] = tool_calls
     template_chunk = {
@@ -63,7 +63,7 @@ def _handle_openai_stream_response(
 def _handle_openai_normal_response(
     response: Dict[str, Any], model: str, finish_reason: str, usage_metadata: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
-    text, tool_calls, _ = _extract_result(
+    text, reasoning_content, tool_calls, _ = _extract_result(
         response, model, stream=False, gemini_format=False
     )
     return {
@@ -77,6 +77,7 @@ def _handle_openai_normal_response(
                 "message": {
                     "role": "assistant",
                     "content": text,
+                    "reasoning_content": reasoning_content,
                     "tool_calls": tool_calls,
                 },
                 "finish_reason": finish_reason,
@@ -156,19 +157,21 @@ def _extract_result(
     model: str,
     stream: bool = False,
     gemini_format: bool = False,
-) -> tuple[str, List[Dict[str, Any]], Optional[bool]]:
-    text, tool_calls = "", []
-    thought = None
+) -> tuple[str, Optional[str], List[Dict[str, Any]], Optional[bool]]:
+    text, reasoning_content, tool_calls, thought = "", "", [], None
     if stream:
         if response.get("candidates"):
             candidate = response["candidates"][0]
             content = candidate.get("content", {})
             parts = content.get("parts", [])
             if not parts:
-                return "", [], None
+                return "", None, [], None
             if "text" in parts[0]:
                 text = parts[0].get("text")
                 if "thought" in parts[0]:
+                    if not gemini_format and settings.SHOW_THINKING_PROCESS:
+                        reasoning_content = text
+                        text = ""
                     thought = parts[0].get("thought")
             elif "executableCode" in parts[0]:
                 text = _format_code_block(parts[0]["executableCode"])
@@ -187,32 +190,18 @@ def _extract_result(
     else:
         if response.get("candidates"):
             candidate = response["candidates"][0]
-            if "thinking" in model:
-                if settings.SHOW_THINKING_PROCESS:
-                    if len(candidate["content"]["parts"]) == 2:
-                        text = (
-                            "> thinking\n\n"
-                            + candidate["content"]["parts"][0]["text"]
-                            + "\n\n---\n> output\n\n"
-                            + candidate["content"]["parts"][1]["text"]
-                        )
-                    else:
-                        text = candidate["content"]["parts"][0]["text"]
-                else:
-                    if len(candidate["content"]["parts"]) == 2:
-                        text = candidate["content"]["parts"][1]["text"]
-                    else:
-                        text = candidate["content"]["parts"][0]["text"]
-            else:
-                text = ""
-                if "parts" in candidate["content"]:
-                    for part in candidate["content"]["parts"]:
-                        if "text" in part:
+            text, reasoning_content = "", ""
+            if "parts" in candidate["content"]:
+                for part in candidate["content"]["parts"]:
+                    if "text" in part:
+                        if "thought" in part and settings.SHOW_THINKING_PROCESS:
+                            reasoning_content += part["text"]
+                        else:
                             text += part["text"]
-                            if "thought" in part and thought is None:
-                                thought = part.get("thought")
-                        elif "inlineData" in part:
-                            text += _extract_image_data(part)
+                        if "thought" in part and thought is None:
+                            thought = part.get("thought")
+                    elif "inlineData" in part:
+                        text += _extract_image_data(part)
 
             text = _add_search_link_text(model, candidate, text)
             tool_calls = _extract_tool_calls(
@@ -220,7 +209,7 @@ def _extract_result(
             )
         else:
             text = "暂无返回"
-    return text, tool_calls, thought
+    return text, reasoning_content, tool_calls, thought
 
 
 def _extract_image_data(part: dict) -> str:
@@ -294,7 +283,7 @@ def _extract_tool_calls(
 def _handle_gemini_stream_response(
     response: Dict[str, Any], model: str, stream: bool
 ) -> Dict[str, Any]:
-    text, tool_calls, thought = _extract_result(
+    text, reasoning_content, tool_calls, thought = _extract_result(
         response, model, stream=stream, gemini_format=True
     )
     if tool_calls:
@@ -311,16 +300,18 @@ def _handle_gemini_stream_response(
 def _handle_gemini_normal_response(
     response: Dict[str, Any], model: str, stream: bool
 ) -> Dict[str, Any]:
-    text, tool_calls, thought = _extract_result(
+    text, reasoning_content, tool_calls, thought = _extract_result(
         response, model, stream=stream, gemini_format=True
     )
+    parts = []
     if tool_calls:
-        content = {"parts": tool_calls, "role": "model"}
+        parts = tool_calls
     else:
-        part = {"text": text}
         if thought is not None:
-            part["thought"] = thought
-        content = {"parts": [part], "role": "model"}
+            parts.append({"text": reasoning_content,"thought": thought})
+        part = {"text": text}
+        parts.append(part)
+    content = {"parts": parts, "role": "model"}
     response["candidates"][0]["content"] = content
     return response
 

@@ -21,10 +21,6 @@ class ApiClient(ABC):
     async def stream_generate_content(self, payload: Dict[str, Any], model: str, api_key: str) -> AsyncGenerator[str, None]:
         pass
 
-    @abstractmethod
-    async def count_tokens(self, payload: Dict[str, Any], model: str, api_key: str) -> Dict[str, Any]:
-        pass
-
 
 class GeminiApiClient(ApiClient):
     """Gemini API客户端"""

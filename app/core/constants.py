@@ -77,3 +77,14 @@ DEFAULT_SAFETY_SETTINGS = [
         {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"},
         {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE"},
     ]
+
+TTS_VOICE_NAMES = [
+    "Zephyr", "Puck", "Charon", "Kore",
+    "Fenrir", "Leda", "Orus", "Aoede",
+    "Callirhoe", "Autonoe", "Enceladus", "Iapetus",
+    "Umbriel", "Algieba", "Despina", "Erinome",
+    "Algenib", "Rasalgethi", "Laomedeia", "Achernar",
+    "Alnilam", "Schedar", "Gacrux", "Pulcherrima",
+    "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia",
+    "Sadaltager", "Sulafat"
+]

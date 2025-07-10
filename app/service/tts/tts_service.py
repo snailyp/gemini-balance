@@ -8,6 +8,7 @@ from typing import Optional
 from google import genai
 
 from app.config.config import settings
+from app.core.constants import TTS_VOICE_NAMES
 from app.database.services import add_error_log, add_request_log
 from app.domain.openai_models import TTSRequest
 from app.log.logger import get_openai_logger
@@ -47,7 +48,7 @@ class TTSService:
                     "speech_config": {
                         "voice_config": {
                             "prebuilt_voice_config": {
-                                "voice_name": settings.TTS_VOICE_NAME
+                                "voice_name": request.voice if request.voice in TTS_VOICE_NAMES else settings.TTS_VOICE_NAME
                             }
                         }
                     },
