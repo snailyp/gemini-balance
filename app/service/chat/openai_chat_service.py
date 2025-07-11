@@ -26,14 +26,41 @@ from app.service.key.key_manager import KeyManager
 logger = get_openai_logger()
 
 
-def _has_media_parts(contents: List[Dict[str, Any]]) -> bool:
-    """判断消息是否包含图片、音频或视频部分 (inline_data)"""
-    for content in contents:
-        if content and "parts" in content and isinstance(content["parts"], list):
-            for part in content["parts"]:
-                if isinstance(part, dict) and "inline_data" in part:
+def _has_media_parts(messages: List[Dict[str, Any]]) -> bool:
+    """判断消息是否包含多媒体部分"""
+    for message in messages:
+        if "parts" in message:
+            for part in message["parts"]:
+                if "image_url" in part or "inline_data" in part:
                     return True
     return False
+
+
+def _clean_json_schema_properties(obj: Any) -> Any:
+    """清理JSON Schema中Gemini API不支持的字段"""
+    if not isinstance(obj, dict):
+        return obj
+    
+    # Gemini API不支持的JSON Schema字段
+    unsupported_fields = {
+        "exclusiveMaximum", "exclusiveMinimum", "const", "examples", 
+        "contentEncoding", "contentMediaType", "if", "then", "else",
+        "allOf", "anyOf", "oneOf", "not", "definitions", "$schema",
+        "$id", "$ref", "$comment", "readOnly", "writeOnly"
+    }
+    
+    cleaned = {}
+    for key, value in obj.items():
+        if key in unsupported_fields:
+            continue
+        if isinstance(value, dict):
+            cleaned[key] = _clean_json_schema_properties(value)
+        elif isinstance(value, list):
+            cleaned[key] = [_clean_json_schema_properties(item) for item in value]
+        else:
+            cleaned[key] = value
+    
+    return cleaned
 
 
 def _build_tools(
@@ -76,6 +103,8 @@ def _build_tools(
                 ):
                     function.pop("parameters", None)
 
+                # 清理函数中的不支持字段
+                function = _clean_json_schema_properties(function)
                 function_declarations.append(function)
 
         if function_declarations:
@@ -137,9 +166,13 @@ def _build_payload(
     if request.model.endswith("-non-thinking"):
         payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0}
     if request.model in settings.THINKING_BUDGET_MAP:
-        payload["generationConfig"]["thinkingConfig"] = {
-            "thinkingBudget": settings.THINKING_BUDGET_MAP.get(request.model, 1000)
-        }
+        if settings.SHOW_THINKING_PROCESS:
+            payload["generationConfig"]["thinkingConfig"] = {
+                "thinkingBudget": settings.THINKING_BUDGET_MAP.get(request.model, 1000),
+                "includeThoughts": True
+            }
+        else:
+            payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": settings.THINKING_BUDGET_MAP.get(request.model, 1000)}
 
     if (
         instruction
