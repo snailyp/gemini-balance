@@ -7,7 +7,7 @@ from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 from app.database.connection import engine, Base
-from app.database.models import Settings
+from app.database.models import Settings, FileRecord
 from app.log.logger import get_database_logger
 
 logger = get_database_logger()

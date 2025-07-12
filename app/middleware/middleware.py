@@ -34,6 +34,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             and not request.url.path.startswith("/openai")
             and not request.url.path.startswith("/api/version/check")
             and not request.url.path.startswith("/vertex-express")
+            and not request.url.path.startswith("/upload")
         ):
 
             auth_token = request.cookies.get("auth_token")
