@@ -41,6 +41,9 @@ class GenerationConfig(BaseModel):
     responseLogprobs: Optional[bool] = None
     logprobs: Optional[int] = None
     thinkingConfig: Optional[Dict[str, Any]] = None
+    # TTS相关字段
+    responseModalities: Optional[List[str]] = None
+    speechConfig: Optional[Dict[str, Any]] = None
 
 
 class SystemInstruction(BaseModel):

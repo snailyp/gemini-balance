@@ -8,6 +8,7 @@ from app.core.security import SecurityService
 from app.domain.gemini_models import GeminiContent, GeminiRequest, ResetSelectedKeysRequest, VerifySelectedKeysRequest
 from app.service.chat.gemini_chat_service import GeminiChatService
 from app.service.key.key_manager import KeyManager, get_key_manager_instance
+from app.service.tts.native.tts_routes import get_tts_chat_service
 from app.service.model.model_service import ModelService
 from app.handler.retry_handler import RetryHandler
 from app.handler.error_handler import handle_route_errors
@@ -109,11 +110,41 @@ async def generate_content(
     async with handle_route_errors(logger, operation_name, failure_message="Content generation failed"):
         logger.info(f"Handling Gemini content generation request for model: {model_name}")
         logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
+
+        # 检测是否为原生Gemini TTS请求
+        is_native_tts = False
+        if "tts" in model_name.lower() and request.generationConfig:
+            # 直接从解析后的request对象获取TTS配置
+            response_modalities = request.generationConfig.responseModalities or []
+            speech_config = request.generationConfig.speechConfig or {}
+
+            # 如果包含AUDIO模态和语音配置，则认为是原生TTS请求
+            if "AUDIO" in response_modalities and speech_config:
+                is_native_tts = True
+                logger.info("Detected native Gemini TTS request")
+                logger.info(f"TTS responseModalities: {response_modalities}")
+                logger.info(f"TTS speechConfig: {speech_config}")
+
         logger.info(f"Using API key: {api_key}")
 
         if not await model_service.check_model_support(model_name):
             raise HTTPException(status_code=400, detail=f"Model {model_name} is not supported")
 
+        # 所有原生TTS请求都使用TTS增强服务
+        if is_native_tts:
+            try:
+                logger.info("Using native TTS enhanced service")
+                tts_service = await get_tts_chat_service(key_manager)
+                response = await tts_service.generate_content(
+                    model=model_name,
+                    request=request,
+                    api_key=api_key
+                )
+                return response
+            except Exception as e:
+                logger.warning(f"Native TTS processing failed, falling back to standard service: {e}")
+
+        # 使用标准服务处理所有其他请求（非TTS）
         response = await chat_service.generate_content(
             model=model_name,
             request=request,
