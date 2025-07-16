@@ -10,15 +10,20 @@ from app.core.constants import DEFAULT_TIMEOUT
 
 logger = get_api_client_logger()
 
+
 class ApiClient(ABC):
     """API客户端基类"""
 
     @abstractmethod
-    async def generate_content(self, payload: Dict[str, Any], model: str, api_key: str) -> Dict[str, Any]:
+    async def generate_content(
+        self, payload: Dict[str, Any], model: str, api_key: str
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def stream_generate_content(self, payload: Dict[str, Any], model: str, api_key: str) -> AsyncGenerator[str, None]:
+    async def stream_generate_content(
+        self, payload: Dict[str, Any], model: str, api_key: str
+    ) -> AsyncGenerator[str, None]:
         pass
 
 
@@ -50,7 +55,7 @@ class GeminiApiClient(ApiClient):
     async def get_models(self, api_key: str) -> Optional[Dict[str, Any]]:
         """获取可用的 Gemini 模型列表"""
         timeout = httpx.Timeout(timeout=5)
-        
+
         proxy_to_use = None
         if settings.PROXIES:
             if settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY:
@@ -73,8 +78,10 @@ class GeminiApiClient(ApiClient):
             except httpx.RequestError as e:
                 logger.error(f"请求模型列表失败: {e}")
                 return None
-            
-    async def generate_content(self, payload: Dict[str, Any], model: str, api_key: str) -> Dict[str, Any]:
+
+    async def generate_content(
+        self, payload: Dict[str, Any], model: str, api_key: str
+    ) -> Dict[str, Any]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)
         model = self._get_real_model(model)
 
@@ -85,20 +92,24 @@ class GeminiApiClient(ApiClient):
             else:
                 proxy_to_use = random.choice(settings.PROXIES)
             logger.info(f"Using proxy for getting models: {proxy_to_use}")
-            
+
         headers = self._prepare_headers()
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/models/{model}:generateContent?key={api_key}"
             response = await client.post(url, json=payload, headers=headers)
             if response.status_code != 200:
                 error_content = response.text
-                raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
+                raise Exception(
+                    f"API call failed with status code {response.status_code}, {error_content}"
+                )
             return response.json()
 
-    async def stream_generate_content(self, payload: Dict[str, Any], model: str, api_key: str) -> AsyncGenerator[str, None]:
+    async def stream_generate_content(
+        self, payload: Dict[str, Any], model: str, api_key: str
+    ) -> AsyncGenerator[str, None]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)
         model = self._get_real_model(model)
-        
+
         proxy_to_use = None
         if settings.PROXIES:
             if settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY:
@@ -110,15 +121,21 @@ class GeminiApiClient(ApiClient):
         headers = self._prepare_headers()
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/models/{model}:streamGenerateContent?alt=sse&key={api_key}"
-            async with client.stream(method="POST", url=url, json=payload, headers=headers) as response:
+            async with client.stream(
+                method="POST", url=url, json=payload, headers=headers
+            ) as response:
                 if response.status_code != 200:
                     error_content = await response.aread()
                     error_msg = error_content.decode("utf-8")
-                    raise Exception(f"API call failed with status code {response.status_code}, {error_msg}")
+                    raise Exception(
+                        f"API call failed with status code {response.status_code}, {error_msg}"
+                    )
                 async for line in response.aiter_lines():
                     yield line
 
-    async def count_tokens(self, payload: Dict[str, Any], model: str, api_key: str) -> Dict[str, Any]:
+    async def count_tokens(
+        self, payload: Dict[str, Any], model: str, api_key: str
+    ) -> Dict[str, Any]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)
         model = self._get_real_model(model)
 
@@ -136,7 +153,9 @@ class GeminiApiClient(ApiClient):
             response = await client.post(url, json=payload, headers=headers)
             if response.status_code != 200:
                 error_content = response.text
-                raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
+                raise Exception(
+                    f"API call failed with status code {response.status_code}, {error_content}"
+                )
             return response.json()
 
 
@@ -146,7 +165,7 @@ class OpenaiApiClient(ApiClient):
     def __init__(self, base_url: str, timeout: int = DEFAULT_TIMEOUT):
         self.base_url = base_url
         self.timeout = timeout
-        
+
     def _prepare_headers(self, api_key: str) -> Dict[str, str]:
         headers = {"Authorization": f"Bearer {api_key}"}
         if settings.CUSTOM_HEADERS:
@@ -171,12 +190,18 @@ class OpenaiApiClient(ApiClient):
             response = await client.get(url, headers=headers)
             if response.status_code != 200:
                 error_content = response.text
-                raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
+                raise Exception(
+                    f"API call failed with status code {response.status_code}, {error_content}"
+                )
             return response.json()
 
-    async def generate_content(self, payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
+    async def generate_content(
+        self, payload: Dict[str, Any], api_key: str
+    ) -> Dict[str, Any]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)
-        logger.info(f"settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY: {settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY}")
+        logger.info(
+            f"settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY: {settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY}"
+        )
         proxy_to_use = None
         if settings.PROXIES:
             if settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY:
@@ -191,10 +216,14 @@ class OpenaiApiClient(ApiClient):
             response = await client.post(url, json=payload, headers=headers)
             if response.status_code != 200:
                 error_content = response.text
-                raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
+                raise Exception(
+                    f"API call failed with status code {response.status_code}, {error_content}"
+                )
             return response.json()
 
-    async def stream_generate_content(self, payload: Dict[str, Any], api_key: str) -> AsyncGenerator[str, None]:
+    async def stream_generate_content(
+        self, payload: Dict[str, Any], api_key: str
+    ) -> AsyncGenerator[str, None]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)
         proxy_to_use = None
         if settings.PROXIES:
@@ -207,17 +236,23 @@ class OpenaiApiClient(ApiClient):
         headers = self._prepare_headers(api_key)
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/openai/chat/completions"
-            async with client.stream(method="POST", url=url, json=payload, headers=headers) as response:
+            async with client.stream(
+                method="POST", url=url, json=payload, headers=headers
+            ) as response:
                 if response.status_code != 200:
                     error_content = await response.aread()
                     error_msg = error_content.decode("utf-8")
-                    raise Exception(f"API call failed with status code {response.status_code}, {error_msg}")
+                    raise Exception(
+                        f"API call failed with status code {response.status_code}, {error_msg}"
+                    )
                 async for line in response.aiter_lines():
                     yield line
-    
-    async def create_embeddings(self, input: str, model: str, api_key: str) -> Dict[str, Any]:
+
+    async def create_embeddings(
+        self, input: str, model: str, api_key: str
+    ) -> Dict[str, Any]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)
-        
+
         proxy_to_use = None
         if settings.PROXIES:
             if settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY:
@@ -236,10 +271,14 @@ class OpenaiApiClient(ApiClient):
             response = await client.post(url, json=payload, headers=headers)
             if response.status_code != 200:
                 error_content = response.text
-                raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
+                raise Exception(
+                    f"API call failed with status code {response.status_code}, {error_content}"
+                )
             return response.json()
-                    
-    async def generate_images(self, payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
+
+    async def generate_images(
+        self, payload: Dict[str, Any], api_key: str
+    ) -> Dict[str, Any]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)
 
         proxy_to_use = None
@@ -256,5 +295,7 @@ class OpenaiApiClient(ApiClient):
             response = await client.post(url, json=payload, headers=headers)
             if response.status_code != 200:
                 error_content = response.text
-                raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
+                raise Exception(
+                    f"API call failed with status code {response.status_code}, {error_content}"
+                )
             return response.json()

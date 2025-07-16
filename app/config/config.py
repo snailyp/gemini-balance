@@ -62,7 +62,9 @@ class Settings(BaseSettings):
     PROXIES: List[str] = []
     PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY: bool = True  # 是否使用一致性哈希来选择代理
     VERTEX_API_KEYS: List[str] = []
-    VERTEX_EXPRESS_BASE_URL: str = "https://aiplatform.googleapis.com/v1beta1/publishers/google"
+    VERTEX_EXPRESS_BASE_URL: str = (
+        "https://aiplatform.googleapis.com/v1beta1/publishers/google"
+    )
 
     # 智能路由配置
     URL_NORMALIZATION_ENABLED: bool = False  # 是否启用智能路由映射功能
@@ -123,7 +125,6 @@ class Settings(BaseSettings):
     AUTO_DELETE_REQUEST_LOGS_DAYS: int = 30
     SAFETY_SETTINGS: List[Dict[str, str]] = DEFAULT_SAFETY_SETTINGS
 
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # 设置默认AUTH_TOKEN（如果未提供）
@@ -153,7 +154,9 @@ def _parse_db_value(key: str, db_value: str, target_type: Type) -> Any:
                     if isinstance(parsed, list):
                         return [str(item) for item in parsed]
                 except json.JSONDecodeError:
-                    return [item.strip() for item in db_value.split(",") if item.strip()]
+                    return [
+                        item.strip() for item in db_value.split(",") if item.strip()
+                    ]
                 logger.warning(
                     f"Could not parse '{db_value}' as List[str] for key '{key}', falling back to comma split or empty list."
                 )
@@ -205,7 +208,9 @@ def _parse_db_value(key: str, db_value: str, target_type: Type) -> Any:
                             f"Parsed DB value for key '{key}' is not a dictionary type. Value: {db_value}"
                         )
                 except json.JSONDecodeError:
-                     logger.error(f"Could not parse '{db_value}' as Dict[str, str] for key '{key}'. Returning empty dict.")
+                    logger.error(
+                        f"Could not parse '{db_value}' as Dict[str, str] for key '{key}'. Returning empty dict."
+                    )
                 return parsed_dict
             # 处理 Dict[str, float]
             elif args and args == (str, float):
@@ -227,7 +232,9 @@ def _parse_db_value(key: str, db_value: str, target_type: Type) -> Any:
                             corrected_db_value = db_value.replace("'", '"')
                             parsed = json.loads(corrected_db_value)
                             if isinstance(parsed, dict):
-                                parsed_dict = {str(k): float(v) for k, v in parsed.items()}
+                                parsed_dict = {
+                                    str(k): float(v) for k, v in parsed.items()
+                                }
                             else:
                                 logger.warning(
                                     f"Parsed DB value (after quote replacement) for key '{key}' is not a dictionary type. Value: {corrected_db_value}"
@@ -388,9 +395,7 @@ async def sync_initial_settings():
 
             # 序列化值为字符串或 JSON 字符串
             if isinstance(value, (list, dict)):
-                db_value = json.dumps(
-                    value, ensure_ascii=False
-                )
+                db_value = json.dumps(value, ensure_ascii=False)
             elif isinstance(value, bool):
                 db_value = str(value).lower()
             elif value is None:

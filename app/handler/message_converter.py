@@ -347,3 +347,62 @@ class OpenAIMessageConverter(MessageConverter):
             }
         )
         return converted_messages, system_instruction
+
+
+class ClaudeMessageConverter(MessageConverter):
+    """将Claude请求格式转换为Gemini请求格式"""
+
+    def convert(
+        self, messages: List[Dict[str, Any]], system_prompt: Optional[str] = None
+    ) -> tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        """
+        将Claude格式的消息列表转换为Gemini格式。
+
+        Args:
+            messages: Claude格式的消息列表。
+            system_prompt: Claude格式的系统提示。
+
+        Returns:
+            一个元组，包含Gemini格式的contents列表和system_instruction字典。
+        """
+        gemini_contents = []
+        
+        for msg in messages:
+            role = msg.role
+            content = msg.content
+
+            # 映射角色: assistant -> model, user -> user
+            gemini_role = "model" if role == "assistant" else "user"
+
+            if not content:
+                continue
+
+            gemini_parts = []
+            if isinstance(content, str):
+                gemini_parts.append({"text": content})
+            elif isinstance(content, list):
+                for part in content:
+                    if part.type == "text":
+                        gemini_parts.append({"text": part.text})
+                    elif part.type == "image":
+                        source = part.source
+                        if source.type == "base64":
+                            gemini_parts.append({
+                                "inline_data": {
+                                    "mime_type": source.media_type,
+                                    "data": source.data
+                                }
+                            })
+            
+            if gemini_parts:
+                gemini_contents.append({"role": gemini_role, "parts": gemini_parts})
+
+        gemini_system_instruction = None
+        if system_prompt:
+            gemini_system_instruction = {
+                # Gemini's system instruction doesn't have a role field inside,
+                # it's a top-level parameter. The structure is {"parts": [...]}
+                "parts": [{"text": system_prompt}]
+            }
+
+        return gemini_contents, gemini_system_instruction
