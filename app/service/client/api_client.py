@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from app.config.config import settings
 from app.log.logger import get_api_client_logger
 from app.core.constants import DEFAULT_TIMEOUT
+import json
 
 logger = get_api_client_logger()
 
@@ -77,7 +78,7 @@ class GeminiApiClient(ApiClient):
     async def generate_content(self, payload: Dict[str, Any], model: str, api_key: str) -> Dict[str, Any]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)
         model = self._get_real_model(model)
-
+        
         proxy_to_use = None
         if settings.PROXIES:
             if settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY:
@@ -87,13 +88,35 @@ class GeminiApiClient(ApiClient):
             logger.info(f"Using proxy for getting models: {proxy_to_use}")
             
         headers = self._prepare_headers()
+        
         async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
             url = f"{self.base_url}/models/{model}:generateContent?key={api_key}"
-            response = await client.post(url, json=payload, headers=headers)
-            if response.status_code != 200:
-                error_content = response.text
-                raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
-            return response.json()
+            
+            try:
+                response = await client.post(url, json=payload, headers=headers)
+                
+                if response.status_code != 200:
+                    error_content = response.text
+                    logger.error(f"API call failed - Status: {response.status_code}, Content: {error_content}")
+                    raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
+                
+                response_data = response.json()
+                
+                # 检查响应结构的基本信息
+                if not response_data.get("candidates"):
+                    logger.warning("No candidates found in API response")
+                
+                return response_data
+                
+            except httpx.TimeoutException as e:
+                logger.error(f"Request timeout: {e}")
+                raise Exception(f"Request timeout: {e}")
+            except httpx.RequestError as e:
+                logger.error(f"Request error: {e}")
+                raise Exception(f"Request error: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error: {e}")
+                raise
 
     async def stream_generate_content(self, payload: Dict[str, Any], model: str, api_key: str) -> AsyncGenerator[str, None]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)

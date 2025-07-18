@@ -8,6 +8,7 @@ from app.service.chat.gemini_chat_service import GeminiChatService
 from app.service.error_log.error_log_service import delete_old_error_logs
 from app.service.key.key_manager import get_key_manager_instance
 from app.service.request_log.request_log_service import delete_old_request_logs_task
+from app.service.files.files_service import get_files_service
 
 logger = Logger.setup_logger("scheduler")
 
@@ -96,6 +97,26 @@ async def check_failed_keys():
         )
 
 
+async def cleanup_expired_files():
+    """
+    定时清理过期的文件记录
+    """
+    logger.info("Starting scheduled cleanup for expired files...")
+    try:
+        files_service = await get_files_service()
+        deleted_count = await files_service.cleanup_expired_files()
+        
+        if deleted_count > 0:
+            logger.info(f"Successfully cleaned up {deleted_count} expired files.")
+        else:
+            logger.info("No expired files to clean up.")
+            
+    except Exception as e:
+        logger.error(
+            f"An error occurred during the scheduled file cleanup: {str(e)}", exc_info=True
+        )
+
+
 def setup_scheduler():
     """设置并启动 APScheduler"""
     scheduler = AsyncIOScheduler(timezone=str(settings.TIMEZONE))  # 从配置读取时区
@@ -134,6 +155,20 @@ def setup_scheduler():
     logger.info(
         f"Auto-delete request logs job scheduled to run daily at 3:05 AM, if enabled and AUTO_DELETE_REQUEST_LOGS_DAYS is set to {settings.AUTO_DELETE_REQUEST_LOGS_DAYS} days."
     )
+    
+    # 新增：添加文件过期清理的定时任务，每小时执行一次
+    if getattr(settings, 'FILES_CLEANUP_ENABLED', True):
+        cleanup_interval = getattr(settings, 'FILES_CLEANUP_INTERVAL_HOURS', 1)
+        scheduler.add_job(
+            cleanup_expired_files,
+            "interval",
+            hours=cleanup_interval,
+            id="cleanup_expired_files_job",
+            name="Cleanup Expired Files",
+        )
+        logger.info(
+            f"File cleanup job scheduled to run every {cleanup_interval} hour(s)."
+        )
 
     scheduler.start()
     logger.info("Scheduler started with all jobs.")

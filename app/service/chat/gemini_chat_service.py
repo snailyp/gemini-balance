@@ -13,7 +13,7 @@ from app.handler.stream_optimizer import gemini_optimizer
 from app.log.logger import get_gemini_logger
 from app.service.client.api_client import GeminiApiClient
 from app.service.key.key_manager import KeyManager
-from app.database.services import add_error_log, add_request_log
+from app.database.services import add_error_log, add_request_log, get_file_api_key
 
 logger = get_gemini_logger()
 
@@ -27,6 +27,28 @@ def _has_image_parts(contents: List[Dict[str, Any]]) -> bool:
                     return True
     return False
 
+def _extract_file_references(contents: List[Dict[str, Any]]) -> List[str]:
+    """從內容中提取文件引用"""
+    file_names = []
+    for content in contents:
+        if "parts" in content:
+            for part in content["parts"]:
+                if not isinstance(part, dict) or "fileData" not in part:
+                    continue
+                file_data = part["fileData"]
+                if "fileUri" not in file_data:
+                    continue
+                file_uri = file_data["fileUri"]
+                # 從 URI 中提取文件名
+                # 1. https://generativelanguage.googleapis.com/v1beta/files/{file_id}
+                match = re.match(rf"{re.escape(settings.BASE_URL)}/(files/.*)", file_uri)
+                if not match:
+                    logger.warning(f"Invalid file URI: {file_uri}")
+                    continue
+                file_id = match.group(1)
+                file_names.append(file_id)
+                logger.info(f"Found file reference: {file_id}")
+    return file_names
 
 def _clean_json_schema_properties(obj: Any) -> Any:
     """清理JSON Schema中Gemini API不支持的字段"""
@@ -232,6 +254,17 @@ class GeminiChatService:
         self, model: str, request: GeminiRequest, api_key: str
     ) -> Dict[str, Any]:
         """生成内容"""
+        # 檢查並獲取文件專用的 API key（如果有文件）
+        file_names = _extract_file_references(request.model_dump().get("contents", []))
+        if file_names:
+            logger.info(f"Request contains file references: {file_names}")
+            file_api_key = await get_file_api_key(file_names[0])
+            if file_api_key:
+                logger.info(f"Found API key for file {file_names[0]}: {file_api_key[:8]}...{file_api_key[-4:]}")
+                api_key = file_api_key  # 使用文件的 API key
+            else:
+                logger.warning(f"No API key found for file {file_names[0]}, using default key: {api_key[:8]}...{api_key[-4:]}")
+        
         payload = _build_payload(model, request)
         start_time = time.perf_counter()
         request_datetime = datetime.datetime.now()
@@ -327,6 +360,17 @@ class GeminiChatService:
         self, model: str, request: GeminiRequest, api_key: str
     ) -> AsyncGenerator[str, None]:
         """流式生成内容"""
+        # 檢查並獲取文件專用的 API key（如果有文件）
+        file_names = _extract_file_references(request.model_dump().get("contents", []))
+        if file_names:
+            logger.info(f"Request contains file references: {file_names}")
+            file_api_key = await get_file_api_key(file_names[0])
+            if file_api_key:
+                logger.info(f"Found API key for file {file_names[0]}: {file_api_key[:8]}...{file_api_key[-4:]}")
+                api_key = file_api_key  # 使用文件的 API key
+            else:
+                logger.warning(f"No API key found for file {file_names[0]}, using default key: {api_key[:8]}...{api_key[-4:]}")
+                
         retries = 0
         max_retries = settings.MAX_RETRIES
         payload = _build_payload(model, request)

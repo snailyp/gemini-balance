@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.core.security import verify_auth_token
 from app.log.logger import get_routes_logger
-from app.router import error_log_routes, gemini_routes, openai_routes, config_routes, scheduler_routes, stats_routes, version_routes, openai_compatiable_routes, vertex_express_routes
+from app.router import error_log_routes, gemini_routes, openai_routes, config_routes, scheduler_routes, stats_routes, version_routes, openai_compatiable_routes, vertex_express_routes, files_routes
 from app.service.key.key_manager import get_key_manager_instance
 from app.service.stats.stats_service import StatsService
 
@@ -34,6 +34,7 @@ def setup_routers(app: FastAPI) -> None:
     app.include_router(version_routes.router)
     app.include_router(openai_compatiable_routes.router)
     app.include_router(vertex_express_routes.router)
+    app.include_router(files_routes.router)
 
     setup_page_routes(app)
 

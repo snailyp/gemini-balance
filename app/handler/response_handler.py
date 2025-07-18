@@ -9,6 +9,9 @@ from typing import Any, Dict, List, Optional
 
 from app.config.config import settings
 from app.utils.uploader import ImageUploaderFactory
+from app.log.logger import get_openai_logger
+
+logger = get_openai_logger()
 
 
 class ResponseHandler(ABC):
@@ -159,13 +162,16 @@ def _extract_result(
     gemini_format: bool = False,
 ) -> tuple[str, Optional[str], List[Dict[str, Any]], Optional[bool]]:
     text, reasoning_content, tool_calls, thought = "", "", [], None
+    
     if stream:
         if response.get("candidates"):
             candidate = response["candidates"][0]
             content = candidate.get("content", {})
             parts = content.get("parts", [])
             if not parts:
+                logger.warning("No parts found in stream response")
                 return "", None, [], None
+            
             if "text" in parts[0]:
                 text = parts[0].get("text")
                 if "thought" in parts[0]:
@@ -191,24 +197,38 @@ def _extract_result(
         if response.get("candidates"):
             candidate = response["candidates"][0]
             text, reasoning_content = "", ""
-            if "parts" in candidate["content"]:
-                for part in candidate["content"]["parts"]:
-                    if "text" in part:
-                        if "thought" in part and settings.SHOW_THINKING_PROCESS:
-                            reasoning_content += part["text"]
-                        else:
-                            text += part["text"]
-                        if "thought" in part and thought is None:
-                            thought = part.get("thought")
-                    elif "inlineData" in part:
-                        text += _extract_image_data(part)
+            
+            # 使用安全的访问方式
+            content = candidate.get("content", {})
+            
+            if content and isinstance(content, dict):
+                parts = content.get("parts", [])
+                
+                if parts:
+                    for part in parts:
+                        if "text" in part:
+                            if "thought" in part and settings.SHOW_THINKING_PROCESS:
+                                reasoning_content += part["text"]
+                            else:
+                                text += part["text"]
+                            if "thought" in part and thought is None:
+                                thought = part.get("thought")
+                        elif "inlineData" in part:
+                            text += _extract_image_data(part)
+                else:
+                    logger.warning(f"No parts found in content for model: {model}")
+            else:
+                logger.error(f"Invalid content structure for model: {model}")
 
             text = _add_search_link_text(model, candidate, text)
-            tool_calls = _extract_tool_calls(
-                candidate["content"]["parts"], gemini_format
-            )
+            
+            # 安全地获取 parts 用于工具调用提取
+            parts = candidate.get("content", {}).get("parts", [])
+            tool_calls = _extract_tool_calls(parts, gemini_format)
         else:
+            logger.warning(f"No candidates found in response for model: {model}")
             text = "暂无返回"
+    
     return text, reasoning_content, tool_calls, thought
 
 
@@ -250,8 +270,8 @@ def _extract_tool_calls(
         return []
 
     letters = string.ascii_lowercase + string.digits
-
     tool_calls = list()
+    
     for i in range(len(parts)):
         part = parts[i]
         if not part or not isinstance(part, dict):
@@ -260,7 +280,7 @@ def _extract_tool_calls(
         item = part.get("functionCall", {})
         if not item or not isinstance(item, dict):
             continue
-
+        
         if gemini_format:
             tool_calls.append(part)
         else:
