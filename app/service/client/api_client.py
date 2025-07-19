@@ -7,7 +7,6 @@ from abc import ABC, abstractmethod
 from app.config.config import settings
 from app.log.logger import get_api_client_logger
 from app.core.constants import DEFAULT_TIMEOUT
-import json
 
 logger = get_api_client_logger()
 

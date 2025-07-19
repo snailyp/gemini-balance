@@ -5,7 +5,7 @@
 
 import time
 import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from app.service.chat.gemini_chat_service import GeminiChatService
 from app.service.tts.native.tts_response_handler import TTSResponseHandler
 from app.domain.gemini_models import GeminiRequest
@@ -69,7 +69,7 @@ class TTSGeminiChatService(GeminiChatService):
             # 构建TTS专用的payload - 不包含tools和safetySettings
             from app.service.chat.gemini_chat_service import _filter_empty_parts
 
-            request_dict = request.model_dump(by_alias=True, exclude_none=False)
+            request_dict = request.model_dump(exclude_none=False)
 
             # 构建TTS专用的简化payload
             payload = {
@@ -130,7 +130,7 @@ class TTSGeminiChatService(GeminiChatService):
                 error_type="tts-api-error",
                 error_log=error_msg,
                 error_code=status_code,
-                request_msg=request.model_dump(by_alias=True, exclude_none=False)
+                request_msg=request.model_dump(exclude_none=False)
             )
 
             logger.error(f"TTS API call failed: {error_msg}")

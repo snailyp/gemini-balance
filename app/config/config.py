@@ -51,8 +51,8 @@ class Settings(BaseSettings):
         return v
 
     # API相关配置
-    API_KEYS: List[str]
-    ALLOWED_TOKENS: List[str]
+    API_KEYS: List[str]=[]
+    ALLOWED_TOKENS: List[str]=[]
     BASE_URL: str = f"https://generativelanguage.googleapis.com/{API_VERSION}"
     AUTH_TOKEN: str = ""
     MAX_FAILURES: int = 3

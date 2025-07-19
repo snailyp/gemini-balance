@@ -157,11 +157,12 @@ def _filter_empty_parts(contents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
     """构建请求payload"""
-    request_dict = request.model_dump(by_alias=True, exclude_none=False)
+    request_dict = request.model_dump(exclude_none=False)
     if request.generationConfig:
         if request.generationConfig.maxOutputTokens is None:
             # 如果未指定最大输出长度，则不传递该字段，解决截断的问题
-            request_dict["generationConfig"].pop("maxOutputTokens")
+            if "maxOutputTokens" in request_dict["generationConfig"]:
+                request_dict["generationConfig"].pop("maxOutputTokens")
 
     # 检查是否为TTS模型
     is_tts_model = "tts" in model.lower()

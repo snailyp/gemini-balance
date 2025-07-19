@@ -329,7 +329,7 @@ async def verify_key(api_key: str, chat_service: GeminiChatService = Depends(get
                     parts=[{"text": "hi"}],
                 )
             ],
-            generation_config={"temperature": 0.7, "top_p": 1.0, "max_output_tokens": 10}
+            generation_config={"temperature": 0.7, "topP": 1.0, "maxOutputTokens": 10}
         )
         
         response = await chat_service.generate_content(
@@ -339,7 +339,9 @@ async def verify_key(api_key: str, chat_service: GeminiChatService = Depends(get
         )
         
         if response:
-            return JSONResponse({"status": "valid"})        
+            # 如果密钥验证成功，则重置其失败计数
+            await key_manager.reset_key_failure_count(api_key)
+            return JSONResponse({"status": "valid"})
     except Exception as e:
         logger.error(f"Key verification failed: {str(e)}")
         
@@ -374,7 +376,7 @@ async def verify_selected_keys(
         try:
             gemini_request = GeminiRequest(
                 contents=[GeminiContent(role="user", parts=[{"text": "hi"}])],
-                generation_config={"temperature": 0.7, "top_p": 1.0, "max_output_tokens": 10}
+                generation_config={"temperature": 0.7, "topP": 1.0, "maxOutputTokens": 10}
             )
             await chat_service.generate_content(
                 settings.TEST_MODEL,
@@ -382,6 +384,8 @@ async def verify_selected_keys(
                 api_key
             )
             successful_keys.append(api_key)
+            # 如果密钥验证成功，则重置其失败计数
+            await key_manager.reset_key_failure_count(api_key)
             return api_key, "valid", None
         except Exception as e:
             error_message = str(e)
