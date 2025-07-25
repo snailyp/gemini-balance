@@ -48,7 +48,10 @@ async def list_models(
         logger.info("Handling models list request")
         api_key = await key_manager.get_random_valid_key()
         logger.info(f"Using API key: {redact_key_for_logging(api_key)}")
-        return await openai_service.get_models(api_key)
+        response = await openai_service.get_models(api_key)
+        # 成功时锁定当前密钥
+        await key_manager.lock_current_key(api_key)
+        return response
 
 
 @router.post("/openai/v1/chat/completions")
@@ -109,6 +112,9 @@ async def embedding(
         logger.info(f"Handling embedding request for model: {request.model}")
         api_key = await key_manager.get_next_working_key()
         logger.info(f"Using API key: {redact_key_for_logging(api_key)}")
-        return await openai_service.create_embeddings(
+        response = await openai_service.create_embeddings(
             input_text=request.input, model=request.model, api_key=api_key
         )
+        # 成功时锁定当前密钥
+        await key_manager.lock_current_key(api_key)
+        return response

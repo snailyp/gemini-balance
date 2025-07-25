@@ -62,7 +62,10 @@ async def list_models(
         logger.info("Handling models list request")
         api_key = await key_manager.get_random_valid_key()
         logger.info(f"Using API key: {redact_key_for_logging(api_key)}")
-        return await model_service.get_gemini_openai_models(api_key)
+        response = await model_service.get_gemini_openai_models(api_key)
+        # 成功时锁定当前密钥
+        await key_manager.lock_current_key(api_key)
+        return response
 
 
 @router.post("/v1/chat/completions")
