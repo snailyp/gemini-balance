@@ -26,6 +26,9 @@ class KeyManager:
         }
         self.MAX_FAILURES = settings.MAX_FAILURES
         self.paid_key = settings.PAID_KEY
+        # 新增当前密钥字段
+        self.current_key = None
+        self.current_key_lock = asyncio.Lock()
 
     async def get_paid_key(self) -> str:
         return self.paid_key
@@ -88,15 +91,25 @@ class KeyManager:
 
     async def get_next_working_key(self) -> str:
         """获取下一可用的API key"""
+        # 优先返回当前有效密钥
+        async with self.current_key_lock:
+            if self.current_key and await self.is_key_valid(self.current_key):
+                return self.current_key
+
+        # 当前密钥无效或未设置，则获取新密钥
         initial_key = await self.get_next_key()
         current_key = initial_key
 
         while True:
             if await self.is_key_valid(current_key):
+                async with self.current_key_lock:
+                    self.current_key = current_key
                 return current_key
 
             current_key = await self.get_next_key()
             if current_key == initial_key:
+                async with self.current_key_lock:
+                    self.current_key = current_key
                 return current_key
 
     async def get_next_working_vertex_key(self) -> str:
@@ -120,6 +133,13 @@ class KeyManager:
                 logger.warning(
                     f"API key {redact_key_for_logging(api_key)} has failed {self.MAX_FAILURES} times"
                 )
+        
+        # 清除当前密钥（如果是当前密钥失败）
+        async with self.current_key_lock:
+            if self.current_key == api_key:
+                self.current_key = None
+                logger.info(f"Cleared current key due to failure: {api_key}")
+        
         if retries < settings.MAX_RETRIES:
             return await self.get_next_working_key()
         else:
@@ -195,6 +215,13 @@ class KeyManager:
             logger.warning("API key list is empty, cannot get first valid key.")
             return ""
         return self.api_keys[0]
+    
+    async def lock_current_key(self, api_key: str) -> None:
+        """锁定当前API密钥（成功时调用）"""
+        async with self.current_key_lock:
+            if api_key != self.current_key:
+                logger.info(f"Locking current API key: {api_key}")
+                self.current_key = api_key
 
     async def get_random_valid_key(self) -> str:
         """获取随机的有效API key"""
