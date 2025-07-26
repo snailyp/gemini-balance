@@ -69,13 +69,57 @@ def _clean_json_schema_properties(obj: Any) -> Any:
         if key in unsupported_fields:
             continue
         if isinstance(value, dict):
-            cleaned[key] = _clean_json_schema_properties(value)
+            cleaned_value = _clean_json_schema_properties(value)
+
+            # 修复Gemini API v1beta的schema要求
+            if cleaned_value.get("type") == "object" and not cleaned_value.get("properties"):
+                # 对于空的object类型，添加一个默认的properties
+                cleaned_value["properties"] = {}
+            elif cleaned_value.get("type") == "array" and not cleaned_value.get("items"):
+                # 对于array类型，必须有items字段
+                cleaned_value["items"] = {"type": "string"}  # 默认为string类型
+
+            cleaned[key] = cleaned_value
         elif isinstance(value, list):
             cleaned[key] = [_clean_json_schema_properties(item) for item in value]
         else:
             cleaned[key] = value
     
     return cleaned
+
+def _fix_function_parameters(parameters: Dict[str, Any]) -> Dict[str, Any]:
+    """修复function parameters以符合Gemini API v1beta要求"""
+    if not isinstance(parameters, dict):
+        return parameters
+
+    # 递归处理properties
+    if "properties" in parameters:
+        fixed_properties = {}
+        for prop_name, prop_schema in parameters["properties"].items():
+            if isinstance(prop_schema, dict):
+                fixed_prop = _fix_function_parameters(prop_schema)
+
+                # 确保object类型有properties字段
+                if fixed_prop.get("type") == "object" and "properties" not in fixed_prop:
+                    fixed_prop["properties"] = {}
+
+                # 确保array类型有items字段
+                elif fixed_prop.get("type") == "array" and "items" not in fixed_prop:
+                    fixed_prop["items"] = {"type": "string"}
+
+                fixed_properties[prop_name] = fixed_prop
+            else:
+                fixed_properties[prop_name] = prop_schema
+
+        parameters["properties"] = fixed_properties
+
+    # 处理items字段（用于array类型）
+    if "items" in parameters and isinstance(parameters["items"], dict):
+        parameters["items"] = _fix_function_parameters(parameters["items"])
+
+    return parameters
+
+
 
 
 def _build_tools(model: str, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -105,10 +149,15 @@ def _build_tools(model: str, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
             for k, v in item.items():
                 if k == "functionDeclarations" and v and isinstance(v, list):
                     functions = record.get("functionDeclarations", [])
-                    # 清理每个函数声明中的不支持字段
+                    # 清理每个函数声明中的不支持字段并修复参数格式
                     cleaned_functions = []
                     for func in v:
                         if isinstance(func, dict):
+                            # 首先修复parameters格式
+                            if "parameters" in func and isinstance(func["parameters"], dict):
+                                func["parameters"] = _fix_function_parameters(func["parameters"])
+
+                            # 然后清理不支持的字段
                             cleaned_func = _clean_json_schema_properties(func)
                             cleaned_functions.append(cleaned_func)
                         else:
