@@ -222,9 +222,9 @@ def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
         }
         
         # 解决 "Tool use with a response mime type: 'application/json' is unsupported" 问题
-        # 如果存在tools字段或内容中包含函数调用，则移除 responseMimeType
-        # 注意：即使tools为空数组，Gemini API也不支持同时使用tools和responseMimeType
-        has_tools_field = tools is not None
+        # 如果存在非空tools字段或内容中包含函数调用，则移除 responseMimeType
+        # 注意：只有当tools数组包含实际工具定义时，Gemini API才不支持同时使用tools和responseMimeType
+        has_tools_field = tools is not None and len(tools) > 0
         has_function_call = any(
             part.get("functionCall")
             for content in payload.get("contents", [])
@@ -319,13 +319,6 @@ class GeminiChatService:
             else:
                 logger.warning(f"No API key found for file {file_names[0]}, using default key: {redact_key_for_logging(api_key)}")
         
-        # 检查是否请求 JSON 响应格式且无工具调用
-        is_json_response_requested = (
-            request.generationConfig and 
-            getattr(request.generationConfig, 'responseMimeType', None) == 'application/json' and
-            not request.tools
-        )
-        
         payload = _build_payload(model, request)
         start_time = time.perf_counter()
         request_datetime = datetime.datetime.now()
@@ -337,12 +330,6 @@ class GeminiChatService:
             response = await self.api_client.generate_content(payload, model, api_key)
             is_success = True
             status_code = 200
-            
-            # 如果请求的是 JSON 格式且无工具调用，直接返回原始响应
-            if is_json_response_requested:
-                logger.info("Returning raw JSON response as requested")
-                return response
-            
             return self.response_handler.handle_response(response, model, stream=False)
         except Exception as e:
             is_success = False
