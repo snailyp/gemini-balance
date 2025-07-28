@@ -28,6 +28,21 @@ def _has_image_parts(contents: List[Dict[str, Any]]) -> bool:
                     return True
     return False
 
+def _has_function_call(contents: List[Dict[str, Any]]) -> bool:
+    """检查内容中是否包含 functionCall"""
+    if not contents or not isinstance(contents, list):
+        return False
+    for content in contents:
+        if not content or not isinstance(content, dict) or "parts" not in content:
+            continue
+        parts = content.get("parts", [])
+        if not parts or not isinstance(parts, list):
+            continue
+        for part in parts:
+            if isinstance(part, dict) and "functionCall" in part:
+                return True
+    return False
+
 
 def _clean_json_schema_properties(obj: Any) -> Any:
     """清理JSON Schema中Gemini API不支持的字段"""
@@ -58,21 +73,6 @@ def _clean_json_schema_properties(obj: Any) -> Any:
 
 def _build_tools(model: str, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     """构建工具"""
-    
-    def _has_function_call(contents: List[Dict[str, Any]]) -> bool:
-        """检查内容中是否包含 functionCall"""
-        if not contents or not isinstance(contents, list):
-            return False
-        for content in contents:
-            if not content or not isinstance(content, dict) or "parts" not in content:
-                continue
-            parts = content.get("parts", [])
-            if not parts or not isinstance(parts, list):
-                continue
-            for part in parts:
-                if isinstance(part, dict) and "functionCall" in part:
-                    return True
-        return False
     
     def _merge_tools(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
         record = dict()
@@ -189,6 +189,19 @@ def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
                 }
             else:
                 payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": settings.THINKING_BUDGET_MAP.get(model,1000)}
+
+    # 解决 "Tool use with a response mime type: 'application/json' is unsupported" 问题
+    has_tools = (payload.get("tools") and 
+                any(tool.get("functionDeclarations") or tool.get("codeExecution") or 
+                    tool.get("googleSearch") or tool.get("urlContext") 
+                    for tool in payload.get("tools", [])))
+    has_function_call = _has_function_call(payload.get("contents", []))
+    
+    if has_tools or has_function_call:
+        # 如果有任何工具使用或函数调用，移除responseMimeType以避免冲突
+        if "responseMimeType" in payload.get("generationConfig", {}):
+            payload["generationConfig"].pop("responseMimeType", None)
+            logger.info("Removed responseMimeType due to tool usage conflict")
 
     return payload
 

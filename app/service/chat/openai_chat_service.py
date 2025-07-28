@@ -35,6 +35,26 @@ def _has_media_parts(messages: List[Dict[str, Any]]) -> bool:
                     return True
     return False
 
+def _has_function_call(messages: List[Dict[str, Any]]) -> bool:
+    """检查OpenAI消息格式中是否包含 tool_calls 或 functionCall"""
+    if not messages or not isinstance(messages, list):
+        return False
+    for message in messages:
+        if not message or not isinstance(message, dict):
+            continue
+        # 检查OpenAI格式的tool_calls
+        if message.get("tool_calls"):
+            return True
+        # 检查转换后的Gemini格式的functionCall
+        if "parts" in message:
+            parts = message.get("parts", [])
+            if not parts or not isinstance(parts, list):
+                continue
+            for part in parts:
+                if isinstance(part, dict) and "functionCall" in part:
+                    return True
+    return False
+
 
 def _clean_json_schema_properties(obj: Any) -> Any:
     """清理JSON Schema中Gemini API不支持的字段"""
@@ -224,6 +244,19 @@ def _build_payload(
         and not request.model.endswith("-image-generation")
     ):
         payload["systemInstruction"] = instruction
+
+    # 解决 "Tool use with a response mime type: 'application/json' is unsupported" 问题
+    has_tools = (payload.get("tools") and 
+                any(tool.get("functionDeclarations") or tool.get("codeExecution") or 
+                    tool.get("googleSearch") or tool.get("urlContext") 
+                    for tool in payload.get("tools", [])))
+    has_function_call = _has_function_call(messages)
+    
+    if has_tools or has_function_call:
+        # 如果有任何工具使用或函数调用，移除responseMimeType以避免冲突
+        if "responseMimeType" in payload.get("generationConfig", {}):
+            payload["generationConfig"].pop("responseMimeType", None)
+            logger.info("Removed responseMimeType due to tool usage conflict")
 
     return payload
 
