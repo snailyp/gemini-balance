@@ -1,2020 +1,2099 @@
 {% extends "base.html" %} {% block title %}API密钥状态 - Gemini Balance{%
-endblock %} {% block head_extra_styles %}
-<style>
-  /* keys_status.html specific styles */
-  .key-content {
-    transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out,
-      padding 0.3s ease-in-out; /* Added padding transition */
-    overflow: hidden; /* Keep hidden initially and during collapse */
-  }
-  .key-content.collapsed {
-    max-height: 0 !important; /* Use important to override inline style during transition */
-    opacity: 0;
-    padding-top: 0 !important; /* Collapse padding */
-    padding-bottom: 0 !important; /* Collapse padding */
-    /* overflow: hidden; */ /* Already set above */
-  }
-  .toggle-icon {
-    transition: transform 0.3s ease;
-  }
-  .toggle-icon.collapsed {
-    transform: rotate(-90deg);
-  }
-  /* Copy status styling is handled by base.html's notification */
-
-  /* 现代数据统计样式 */
-  .stats-dashboard {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-    position: relative;
-    z-index: 10;
-  }
-
-  @media (min-width: 768px) {
+  endblock %} {% block head_extra_styles %}
+  <style>
+    /* keys_status.html specific styles */
+    .key-content {
+      transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out,
+        padding 0.3s ease-in-out; /* Added padding transition */
+      overflow: hidden; /* Keep hidden initially and during collapse */
+    }
+    .key-content.collapsed {
+      max-height: 0 !important; /* Use important to override inline style during transition */
+      opacity: 0;
+      padding-top: 0 !important; /* Collapse padding */
+      padding-bottom: 0 !important; /* Collapse padding */
+      /* overflow: hidden; */ /* Already set above */
+    }
+    .toggle-icon {
+      transition: transform 0.3s ease;
+    }
+    .toggle-icon.collapsed {
+      transform: rotate(-90deg);
+    }
+    /* Copy status styling is handled by base.html's notification */
+  
+    /* 现代数据统计样式 */
     .stats-dashboard {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-  /* 统计卡片样式 */
-  .stats-card {
-    background-color: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-radius: 0.75rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
-      0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    overflow: hidden;
-    transition: all 0.3s ease-in-out;
-  }
-
-  .stats-card:hover {
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-      0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    border-color: rgba(0, 0, 0, 0.12);
-  }
-
-  .stats-card-header {
-    background-color: rgba(249, 250, 251, 0.95);
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap; /* Allow wrapping for smaller screens */
-    gap: 0.5rem; /* Add gap between items */
-  }
-
-  .stats-card-title {
-    display: flex;
-    align-items: center;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #374151; /* gray-700 for light theme */
-    text-shadow: none;
-  }
-
-  .stats-card-title i {
-    margin-right: 0.5rem;
-    color: #6b7280; /* gray-500 for light theme */
-  }
-
-  .stats-card-header h2 {
-    color: #374151; /* gray-700 for light theme */
-  }
-
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.5rem;
-    padding: 0.75rem;
-  }
-
-  /* 统计项样式 */
-  .stat-item {
-    padding: 0.75rem;
-    border-radius: 0.5rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    transition: all 0.3s ease-in-out;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .stat-item::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    opacity: 0.15;
-    background-color: currentColor;
-    z-index: 0;
-    transition: opacity 0.3s ease-in-out;
-  }
-
-  .stat-item:hover::before {
-    opacity: 0.25;
-  }
-
-  .stat-item:hover {
-    transform: scale(1.05);
-  }
-
-  .stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    z-index: 10;
-    position: relative;
-    color: #1f2937; /* gray-800 for light theme */
-    text-shadow: none;
-  }
-
-  .stat-label {
-    font-size: 0.75rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-top: 0.25rem;
-    z-index: 10;
-    position: relative;
-    color: #6b7280; /* gray-500 for light theme */
-    text-shadow: none;
-  }
-
-  .stat-icon {
-    position: absolute;
-    right: 0.5rem;
-    bottom: 0.25rem;
-    opacity: 0.15;
-    font-size: 1.875rem;
-    transform: rotate(12deg);
-    transition: all 0.3s ease-in-out;
-  }
-
-  .stat-item:hover .stat-icon {
-    opacity: 0.25;
-    transform: scale(1.1) rotate(0deg);
-  }
-
-  /* 统计类型样式 */
-  .stat-primary {
-    color: #3b82f6; /* blue-500 */
-    background-color: rgba(59, 130, 246, 0.1);
-  }
-  .stat-success {
-    color: #10b981; /* emerald-500 */
-    background-color: rgba(16, 185, 129, 0.1);
-  }
-  .stat-danger {
-    color: #ef4444; /* red-500 */
-    background-color: rgba(239, 68, 68, 0.1);
-  }
-  .stat-warning {
-    color: #f59e0b; /* amber-500 */
-    background-color: rgba(245, 158, 11, 0.1);
-  }
-  .stat-info {
-    color: #06b6d4; /* cyan-500 */
-    background-color: rgba(6, 182, 212, 0.1);
-  }
-
-  /* 新增：调整API调用统计项的悬停背景色，使其更亮更融合主题 */
-  .stat-item.stat-warning:hover {
-    background-color: rgba(
-      245,
-      158,
-      11,
-      0.2
-    ) !important; /* amber-500 with higher opacity */
-  }
-  .stat-item.stat-info:hover {
-    background-color: rgba(
-      6,
-      182,
-      212,
-      0.2
-    ) !important; /* cyan-500 with higher opacity */
-  }
-  .stat-item.stat-primary:hover {
-    background-color: rgba(
-      59,
-      130,
-      246,
-      0.2
-    ) !important; /* blue-500 with higher opacity */
-  }
-
-  /* 响应式调整 */
-  @media (max-width: 640px) {
-    .stats-dashboard {
-      gap: 1rem;
-    }
-    .stats-grid {
-      grid-template-columns: repeat(2, 1fr);
-      gap: 0.5rem;
-      padding: 0.5rem;
-    }
-    .stat-item {
-      padding: 0.5rem;
-    }
-    .stat-value {
-      font-size: 1.25rem;
-    }
-    .stat-label {
-      font-size: 0.625rem;
-    }
-    .stats-card-header {
-      padding: 0.5rem 0.75rem;
-    } /* Adjust header padding */
-    .key-content ul {
+      display: grid;
       grid-template-columns: 1fr;
-    } /* Stack keys vertically on small screens */
-  }
-  /* Tailwind Toggle Switch Helper CSS */
-  .toggle-checkbox:checked {
-    @apply: right-0 border-blue-600;
-    right: 0;
-    border-color: #2563eb;
-  }
-  .toggle-checkbox:checked + .toggle-label {
-    @apply: bg-blue-600;
-    background-color: #2563eb;
-  }
-
-  /* Pagination Controls */
-  #validPaginationControls,
-  #invalidPaginationControls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-top: 1rem; /* mt-4 */
-    gap: 0.5rem; /* space-x-2 */
-  }
-
-  /* Ensure list items are flex for alignment */
-  #validKeys li,
-  #invalidKeys li {
-    display: flex;
-    align-items: flex-start; /* Align checkbox with top of content */
-    gap: 0.75rem; /* gap-3 */
-  }
-  /* Ensure grid layout for key lists */
-  #validKeys,
-  #invalidKeys {
-    display: grid;
-    grid-template-columns: 1fr; /* Default single column */
-    gap: 0.75rem; /* gap-3 */
-  }
-  @media (min-width: 768px) {
-    /* md breakpoint */
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+      position: relative;
+      z-index: 10;
+    }
+  
+    @media (min-width: 768px) {
+      .stats-dashboard {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  
+    /* 统计卡片样式 */
+    .stats-card {
+      background-color: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      transition: all 0.3s ease-in-out;
+    }
+  
+    .stats-card:hover {
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+        0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      border-color: rgba(0, 0, 0, 0.12);
+    }
+  
+    .stats-card-header {
+      background-color: rgba(249, 250, 251, 0.95);
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap; /* Allow wrapping for smaller screens */
+      gap: 0.5rem; /* Add gap between items */
+    }
+  
+    .stats-card-title {
+      display: flex;
+      align-items: center;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #374151; /* gray-700 for light theme */
+      text-shadow: none;
+    }
+  
+    .stats-card-title i {
+      margin-right: 0.5rem;
+      color: #6b7280; /* gray-500 for light theme */
+    }
+  
+    .stats-card-header h2 {
+      color: #374151; /* gray-700 for light theme */
+    }
+  
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+      padding: 0.75rem;
+    }
+  
+    /* 统计项样式 */
+    .stat-item {
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      transition: all 0.3s ease-in-out;
+      position: relative;
+      overflow: hidden;
+    }
+  
+    .stat-item::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.15;
+      background-color: currentColor;
+      z-index: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+  
+    .stat-item:hover::before {
+      opacity: 0.25;
+    }
+  
+    .stat-item:hover {
+      transform: scale(1.05);
+    }
+  
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      z-index: 10;
+      position: relative;
+      color: #1f2937; /* gray-800 for light theme */
+      text-shadow: none;
+    }
+  
+    .stat-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 0.25rem;
+      z-index: 10;
+      position: relative;
+      color: #6b7280; /* gray-500 for light theme */
+      text-shadow: none;
+    }
+  
+    .stat-icon {
+      position: absolute;
+      right: 0.5rem;
+      bottom: 0.25rem;
+      opacity: 0.15;
+      font-size: 1.875rem;
+      transform: rotate(12deg);
+      transition: all 0.3s ease-in-out;
+    }
+  
+    .stat-item:hover .stat-icon {
+      opacity: 0.25;
+      transform: scale(1.1) rotate(0deg);
+    }
+  
+    /* 统计类型样式 */
+    .stat-primary {
+      color: #3b82f6; /* blue-500 */
+      background-color: rgba(59, 130, 246, 0.1);
+    }
+    .stat-success {
+      color: #10b981; /* emerald-500 */
+      background-color: rgba(16, 185, 129, 0.1);
+    }
+    .stat-danger {
+      color: #ef4444; /* red-500 */
+      background-color: rgba(239, 68, 68, 0.1);
+    }
+    .stat-warning {
+      color: #f59e0b; /* amber-500 */
+      background-color: rgba(245, 158, 11, 0.1);
+    }
+    .stat-info {
+      color: #06b6d4; /* cyan-500 */
+      background-color: rgba(6, 182, 212, 0.1);
+    }
+  
+    /* 新增：调整API调用统计项的悬停背景色，使其更亮更融合主题 */
+    .stat-item.stat-warning:hover {
+      background-color: rgba(
+        245,
+        158,
+        11,
+        0.2
+      ) !important; /* amber-500 with higher opacity */
+    }
+    .stat-item.stat-info:hover {
+      background-color: rgba(
+        6,
+        182,
+        212,
+        0.2
+      ) !important; /* cyan-500 with higher opacity */
+    }
+    .stat-item.stat-primary:hover {
+      background-color: rgba(
+        59,
+        130,
+        246,
+        0.2
+      ) !important; /* blue-500 with higher opacity */
+    }
+  
+    /* 响应式调整 */
+    @media (max-width: 640px) {
+      .stats-dashboard {
+        gap: 1rem;
+      }
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        padding: 0.5rem;
+      }
+      .stat-item {
+        padding: 0.5rem;
+      }
+      .stat-value {
+        font-size: 1.25rem;
+      }
+      .stat-label {
+        font-size: 0.625rem;
+      }
+      .stats-card-header {
+        padding: 0.5rem 0.75rem;
+      } /* Adjust header padding */
+      .key-content ul {
+        grid-template-columns: 1fr;
+      } /* Stack keys vertically on small screens */
+    }
+    /* Tailwind Toggle Switch Helper CSS */
+    .toggle-checkbox:checked {
+      @apply: right-0 border-blue-600;
+      right: 0;
+      border-color: #2563eb;
+    }
+    .toggle-checkbox:checked + .toggle-label {
+      @apply: bg-blue-600;
+      background-color: #2563eb;
+    }
+  
+    /* Pagination Controls */
+    #validPaginationControls,
+    #invalidPaginationControls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 1rem; /* mt-4 */
+      gap: 0.5rem; /* space-x-2 */
+    }
+  
+    /* Ensure list items are flex for alignment */
+    #validKeys li,
+    #invalidKeys li {
+      display: flex;
+      align-items: flex-start; /* Align checkbox with top of content */
+      gap: 0.75rem; /* gap-3 */
+    }
+    /* Ensure grid layout for key lists */
     #validKeys,
     #invalidKeys {
-      grid-template-columns: repeat(
-        2,
-        1fr
-      ); /* Two columns on medium screens and up */
+      display: grid;
+      grid-template-columns: 1fr; /* Default single column */
+      gap: 0.75rem; /* gap-3 */
     }
-  }
-
-  /* 修改密钥列表背景和卡片样式 */
-  .key-content {
-    background-color: rgba(249, 250, 251, 0.8) !important;
-  }
-
-  #validKeys li,
-  #invalidKeys li {
-    background-color: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    transition: all 0.3s ease;
-    cursor: pointer;
-    position: relative;
-    padding-left: 2.5rem; /* 为自定义复选框留出空间 */
-  }
-
-  #validKeys li:hover,
-  #invalidKeys li:hover {
-    border-color: rgba(0, 0, 0, 0.12);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
-    background-color: rgba(249, 250, 251, 0.95);
-  }
-
-  #validKeys li.selected,
-  #invalidKeys li.selected {
-    background-color: rgba(239, 246, 255, 0.95);
-    border-color: rgba(59, 130, 246, 0.3);
-  }
-
-  /* 隐藏原生复选框 */
-  .key-checkbox {
-    display: none;
-  }
-
-  /* 自定义复选框样式 */
-  #validKeys li::before,
-  #invalidKeys li::before {
-    content: "";
-    position: absolute;
-    left: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 1.25rem; /* 20px */
-    height: 1.25rem; /* 20px */
-    border: 2px solid rgba(156, 163, 175, 0.7); /* gray-400 */
-    border-radius: 0.375rem; /* 6px */
-    background-color: rgba(255, 255, 255, 0.9);
-    transition: all 0.2s ease-in-out;
-  }
-
-  #validKeys li.selected::before,
-  #invalidKeys li.selected::before {
-    background-color: #3b82f6; /* blue-500 */
-    border-color: #2563eb; /* blue-600 */
-  }
-
-  /* 自定义复选框对勾样式 */
-  #validKeys li.selected::after,
-  #invalidKeys li.selected::after {
-    content: "\f00c"; /* Font Awesome check icon */
-    font-family: "Font Awesome 5 Free";
-    font-weight: 900;
-    position: absolute;
-    left: calc(0.75rem + 0.3rem); /* 调整对勾位置 */
-    top: 50%;
-    transform: translateY(-50%) scale(0.9);
-    color: white;
-    font-size: 0.8rem;
-  }
-
-  .key-text {
-    color: #374151 !important; /* gray-700 for light theme */
-    text-shadow: none;
-    font-weight: 500;
-  }
-
-  /* 模态框背景色调整 - comprehensive modal styling */
-  #apiCallDetailsModal .bg-white,
-  #keyUsageDetailsModal .bg-white,
-  #resultModal .bg-white,
-  #resetModal .bg-white,
-  #verifyModal .bg-white,
-  .modal .bg-white {
-    background-color: rgba(255, 255, 255, 0.98) !important;
-    color: #374151 !important; /* gray-700 */
-    border-color: rgba(0, 0, 0, 0.08) !important;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
-  }
-
-  /* 模态框标题颜色 */
-  #apiCallDetailsModalTitle,
-  #keyUsageDetailsModalTitle,
-  #resultModalTitle,
-  #resetModalTitle,
-  #verifyModalTitle {
-    color: #1f2937 !important; /* gray-800 */
-    text-shadow: none;
-    font-weight: 600;
-  }
-
-  /* 密钥使用详情模态框头部特定样式 */
-  #keyUsageDetailsModal .bg-white > div.border-b {
-    /* 针对头部区域的下边框 */
-    border-bottom-color: rgba(0, 0, 0, 0.12) !important;
-  }
-
-  /* 模态框消息文本颜色 */
-  #apiCallDetailsContent,
-  #keyUsageDetailsContent,
-  #resultModalMessage,
-  #resetModalMessage,
-  #verifyModalMessage {
-    color: #374151 !important; /* gray-700 */
-  }
-
-  /* 特定调整操作结果模态框的消息区域样式 */
-  #resultModalMessage {
-    background-color: rgba(255, 255, 255, 0.95) !important; /* 浅色背景 */
-    border-color: rgba(0, 0, 0, 0.08) !important; /* 浅色边框 */
-    color: #374151 !important; /* 深色文本 */
-  }
-
-  /* 批量验证结果中普通信息列表 (如成功密钥列表) 的浅色主题样式 */
-  #resultModalMessage ul[class*="bg-gray-50"] {
-    /* 针对特定灰色背景色的ul */
-    background-color: rgba(249, 250, 251, 0.95) !important; /* 浅灰色背景 */
-    border-color: rgba(0, 0, 0, 0.08) !important; /* 浅色边框 */
-  }
-
-  #resultModalMessage ul[class*="bg-gray-50"] li {
-    color: #374151 !important; /* 深色文本 */
-  }
-
-  /* 批量验证结果中失败列表的浅色主题样式 */
-  #resultModalMessage ul[class*="bg-red-50"] {
-    /* 针对特定背景色的ul */
-    background-color: rgba(254, 242, 242, 0.95) !important; /* 浅红色背景 */
-    border-color: rgba(239, 68, 68, 0.2) !important; /* 浅红色边框 */
-  }
-
-  /* 失败列表中的密钥文本 (如 AIza...lJ6E) */
-  #resultModalMessage ul[class*="bg-red-50"] li span.font-mono {
-    color: #dc2626 !important; /* 深红色文本 */
-  }
-
-  /* 失败列表中的 "收起/展开" 按钮 - 协调的红色主题设计 */
-  #resultModalMessage ul[class*="bg-red-50"] li button[class*="bg-red-200"] {
-    background-color: #dc2626 !important; /* 深红色按钮背景，与外框协调 */
-    color: #ffffff !important; /* 白色按钮文本 */
-    border: 1px solid #b91c1c !important; /* 更深的红色边框 */
-    box-shadow: none !important;
-    font-weight: 500 !important; /* 增强文字粗细以提高可读性 */
-  }
-  #resultModalMessage
-    ul[class*="bg-red-50"]
-    li
-    button[class*="bg-red-200"]:hover {
-    background-color: #b91c1c !important; /* 悬停时更深的红色背景 */
-    color: #ffffff !important; /* 悬停时白色按钮文本 */
-    transform: translateY(-1px) !important; /* 轻微上移效果 */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important; /* 悬停阴影效果 */
-  }
-
-  /* 失败列表中的错误详情框 - 与红色主题协调的样式 */
-  #resultModalMessage ul[class*="bg-red-50"] li div[id^="error-details-"] {
-    background-color: rgba(254, 242, 242, 0.8) !important; /* 更浅的红色背景，与外框协调 */
-    border-color: rgba(248, 113, 113, 0.3) !important; /* 浅红色边框 */
-    color: #7f1d1d !important; /* 深红色文本，确保良好对比度 */
-    font-weight: 500 !important; /* 增强文字粗细以提高可读性 */
-    line-height: 1.5 !important; /* 改善行高以提高可读性 */
-  }
-
-  /* 密钥使用详情模态框内表格表头样式 */
-  #keyUsageDetailsModal #keyUsageDetailsContent table th {
-    background-color: rgba(243, 244, 246, 0.95) !important; /* 浅灰色背景 */
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important; /* 浅色边框 */
-    color: #374151 !important; /* 深色文字 */
-    text-shadow: none; /* 移除文本阴影 */
-  }
-
-  /* 密钥使用详情模态框表格单元格样式已移除，使用默认颜色与API调用详情保持一致 */
-
-  /* 按钮文本颜色 */
-  .stats-card button {
-    color: #ffffff;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
-  }
-
-  /* 表单控件背景 */
-  .form-input,
-  .form-select {
-    background-color: rgba(255, 255, 255, 0.95) !important;
-    color: #374151 !important; /* gray-700 */
-    border-color: rgba(0, 0, 0, 0.12) !important;
-  }
-
-  /* 标签文字颜色 */
-  .text-gray-500,
-  .text-gray-600,
-  .text-gray-700 {
-    color: #374151 !important; /* dark gray for light theme */
-    text-shadow: none;
-  }
-
-  /* 调整全局背景色，使之与白色背景更加协调 */
-  .glass-card {
-    background-color: rgba(255, 255, 255, 0.95) !important;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  }
-
-  /* 分页控件样式增强 */
-  .pagination-button {
-    background-color: rgba(255, 255, 255, 0.9);
-    color: #374151; /* gray-700 */
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    text-shadow: none;
-  }
-
-  .pagination-button.active {
-    background-color: #3b82f6; /* blue-500 */
-    color: white;
-    border-color: #2563eb; /* blue-600 */
-  }
-
-  /* 状态标签增强 */
-  .inline-flex.items-center.px-2\.5.py-0\.5.rounded-full {
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
-  }
-
-  /* 按钮颜色增强 */
-  button.bg-success-600,
-  button.bg-blue-600,
-  button.bg-slate-500,
-  button.bg-purple-600,
-  button.bg-primary-700,
-  button.bg-teal-600 {
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
-  }
-
-  /* 复选框文本样式 */
-  input[type="checkbox"] + label {
-    color: #f1f5f9 !important;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
-  }
-
-  /* 底部版权栏文本颜色修正 */
-  .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-200,
-  .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-300,
-  .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-400,
-  .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-500,
-  .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-600,
-  .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-700 {
-    color: #1f2937 !important; /* 使用更深的灰色提高对比度 */
-    text-shadow: none !important;
-  }
-
-  /* 导航链接悬停样式 - 优化以避免遮挡内容 */
-  .nav-link {
-    transition: all 0.2s ease-in-out;
-    position: relative;
-    z-index: 1; /* 确保不会遮挡重要内容 */
-  }
-
-  .nav-link:hover {
-    background-color: rgba(59, 130, 246, 0.1) !important; /* blue-500 light */
-    transform: scale(1.02); /* 使用缩放代替向上移动 */
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); /* 增强阴影效果 */
-  }
-
-  /* 导航按钮容器样式 - 为悬停效果预留空间 */
-  .nav-buttons-container {
-    padding-top: 0.5rem; /* 为悬停效果预留上方空间 */
-    padding-bottom: 0.75rem; /* 为悬停效果预留下方空间 */
-  }
-
-  /* 主导航按钮的优化悬停效果 */
-  .main-nav-btn:hover {
-    transform: scale(1.02) !important; /* 使用缩放代替向上移动 */
-    box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3) !important; /* 蓝色阴影 */
-  }
-
-  /* Active navigation tab */
-  .bg-violet-600 {
-    background-color: #3b82f6 !important; /* blue-500 */
-    color: #ffffff !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-    transform: translateY(-1px) !important;
-    border: 1px solid #2563eb !important; /* blue-600 */
-  }
-
-  .bg-violet-600:hover {
-    background-color: #2563eb !important; /* blue-600 */
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.15), 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-  }
-
-  /* Fix page title gradient */
-  .text-transparent.bg-clip-text.bg-gradient-to-r.from-violet-400.to-pink-400 {
-    background: none !important;
-    color: #1f2937 !important; /* gray-800 */
-    -webkit-background-clip: unset !important;
-    background-clip: unset !important;
-  }
-
-  /* Fix refresh button */
-  .bg-white.bg-opacity-20 {
-    background-color: rgba(255, 255, 255, 0.9) !important;
-    color: #3b82f6 !important; /* blue-500 */
-  }
-
-  .bg-white.bg-opacity-20:hover {
-    background-color: rgba(255, 255, 255, 1) !important;
-  }
-
-  /* Fix batch actions area purple background */
-  #validBatchActions, #invalidBatchActions {
-    background-color: rgba(249, 250, 251, 0.95) !important; /* light gray */
-    border-color: rgba(0, 0, 0, 0.08) !important;
-  }
-
-  #validBatchActions .text-gray-200, #invalidBatchActions .text-gray-200 {
-    color: #374151 !important; /* dark gray */
-  }
-
-  /* Fix primary button colors */
-  .bg-primary-600, .bg-primary-700, .bg-primary-800 {
-    background-color: #3b82f6 !important; /* blue-500 */
-  }
-
-  .bg-primary-600:hover, .bg-primary-700:hover, .bg-primary-800:hover {
-    background-color: #2563eb !important; /* blue-600 */
-  }
-
-  /* Fix text-primary colors */
-  .text-primary-600 {
-    color: #3b82f6 !important; /* blue-500 */
-  }
-
-  /* Fix form input focus colors */
-  .focus\\:ring-primary-500:focus {
-    --tw-ring-color: rgba(59, 130, 246, 0.2) !important;
-  }
-
-  .focus\\:border-primary-500:focus {
-    border-color: #3b82f6 !important;
-  }
-
-  /* 新增：密钥列表内按钮背景和悬停颜色调整 */
-  /* 验证按钮 (绿色) */
-  #validKeys li button.bg-success-600,
-  #invalidKeys li button.bg-success-600 {
-    background-color: rgba(22, 163, 74, 0.65) !important;
-    border: 1px solid rgba(22, 163, 74, 0.85);
-  }
-  #validKeys li button.bg-success-600:hover,
-  #invalidKeys li button.bg-success-600:hover {
-    background-color: rgba(21, 128, 61, 0.75) !important;
-    border-color: rgba(21, 128, 61, 0.95);
-  }
-
-  /* 重置按钮 (加深灰色底，白色文字) */
-  #validKeys li button.bg-gray-500,
-  #invalidKeys li button.bg-gray-500 {
-    background-color: #6b7280 !important; /* gray-500 - 加深的灰色底 */
-    border: 1px solid #4b5563 !important; /* gray-600 */
-    color: #ffffff !important; /* white - 白色文字 */
-  }
-  #validKeys li button.bg-gray-500:hover,
-  #invalidKeys li button.bg-gray-500:hover {
-    background-color: #4b5563 !important; /* gray-600 - 更深的灰色 */
-    border-color: #374151 !important; /* gray-700 */
-    color: #ffffff !important; /* white - 白色文字 */
-  }
-
-  /* 复制按钮 (蓝色底色，白色文字) */
-  #validKeys li button.bg-blue-500,
-  #invalidKeys li button.bg-blue-500 {
-    background-color: #3b82f6 !important; /* blue-500 - 蓝色底 */
-    border: 1px solid #2563eb !important; /* blue-600 */
-    color: #ffffff !important; /* Keep white text as specified in HTML */
-  }
-  #validKeys li button.bg-blue-500:hover,
-  #invalidKeys li button.bg-blue-500:hover {
-    background-color: #2563eb !important; /* blue-600 - 深蓝色hover */
-    border-color: #1d4ed8 !important; /* blue-700 */
-    color: #ffffff !important; /* Keep white text on hover */
-  }
-
-  /* 详情按钮 (改为蓝色) */
-  #validKeys li button.bg-purple-600,
-  #invalidKeys li button.bg-purple-600 {
-    background-color: rgba(59, 130, 246, 0.8) !important; /* blue-500 */
-    border: 1px solid rgba(59, 130, 246, 0.9);
-  }
-  #validKeys li button.bg-purple-600:hover,
-  #invalidKeys li button.bg-purple-600:hover {
-    background-color: rgba(37, 99, 235, 0.9) !important; /* blue-600 */
-    border-color: rgba(37, 99, 235, 1);
-  }
-
-  /* 删除按钮 (鲜艳浅红色) - HTML中使用 bg-red-800 */
-  #validKeys li button.bg-red-800,
-  #invalidKeys li button.bg-red-800 {
-    background-color: #f87171 !important; /* red-400 - bright light red */
-    border: 1px solid #ef4444 !important; /* red-500 */
-    color: #ffffff !important; /* Ensure white text */
-  }
-
-  #validKeys li button.bg-red-800:hover,
-  #invalidKeys li button.bg-red-800:hover {
-    background-color: #ef4444 !important; /* red-500 - darker bright light red */
-    border-color: #dc2626 !important; /* red-600 */
-  }
-
-  /* Comprehensive purple to light theme conversion */
-  [style*="background-color: rgba(80, 60, 160"],
-  [style*="background-color: rgba(70, 50, 150"],
-  [style*="background-color: rgba(120, 100, 200"] {
-    background-color: rgba(255, 255, 255, 0.95) !important;
-    border-color: rgba(0, 0, 0, 0.08) !important;
-    color: #374151 !important;
-  }
-
-  /* Fix modal button colors - specific overrides for keys_status.html */
-  /* Blue buttons in modals */
-  .bg-blue-600, button.bg-blue-600,
-  .bg-blue-700, button.bg-blue-700 {
-    background-color: #3b82f6 !important; /* blue-500 - light blue */
-  }
-
-  .bg-blue-600:hover, button.bg-blue-600:hover,
-  .bg-blue-700:hover, button.bg-blue-700:hover,
-  .hover\\:bg-blue-700:hover, .hover\\:bg-blue-800:hover {
-    background-color: #2563eb !important; /* blue-600 - darker light blue */
-  }
-
-  /* Red buttons in modals */
-  .bg-red-700, button.bg-red-700,
-  .bg-red-800, button.bg-red-800 {
-    background-color: #f87171 !important; /* red-400 - bright light red */
-  }
-
-  .bg-red-700:hover, button.bg-red-700:hover,
-  .bg-red-800:hover, button.bg-red-800:hover,
-  .hover\\:bg-red-800:hover {
-    background-color: #ef4444 !important; /* red-500 - darker bright light red */
-  }
-
-  /* Primary buttons in modals */
-  .bg-primary-700, button.bg-primary-700,
-  .bg-primary-800, button.bg-primary-800 {
-    background-color: #3b82f6 !important; /* blue-500 - light blue */
-  }
-
-  .bg-primary-700:hover, button.bg-primary-700:hover,
-  .bg-primary-800:hover, button.bg-primary-800:hover,
-  .hover\\:bg-primary-800:hover {
-    background-color: #2563eb !important; /* blue-600 - darker light blue */
-  }
-
-  /* Teal buttons in modals (for verify button) */
-  .bg-teal-700, button.bg-teal-700,
-  .bg-teal-800, button.bg-teal-800 {
-    background-color: #3b82f6 !important; /* blue-500 - light blue (change teal to light blue) */
-  }
-
-  .bg-teal-700:hover, button.bg-teal-700:hover,
-  .bg-teal-800:hover, button.bg-teal-800:hover,
-  .hover\\:bg-teal-800:hover {
-    background-color: #2563eb !important; /* blue-600 - darker light blue */
-  }
-
-  /* Global slate/gray button color overrides - only for modal buttons */
-  /* Modal slate buttons should be light gray with dark text */
-  .modal .bg-slate-500, .modal button.bg-slate-500,
-  .modal .bg-slate-600, .modal button.bg-slate-600,
-  .modal .bg-slate-700, .modal button.bg-slate-700 {
-    background-color: #e5e7eb !important; /* gray-200 - light gray */
-    color: #374151 !important; /* gray-700 - dark text for contrast */
-  }
-
-  .modal .bg-slate-500:hover, .modal button.bg-slate-500:hover,
-  .modal .bg-slate-600:hover, .modal button.bg-slate-600:hover,
-  .modal .bg-slate-700:hover, .modal button.bg-slate-700:hover,
-  .modal .hover\\:bg-slate-600:hover, .modal .hover\\:bg-slate-700:hover {
-    background-color: #d1d5db !important; /* gray-300 - darker light gray */
-    color: #374151 !important; /* gray-700 - dark text for contrast */
-  }
-
-  /* Fix any remaining button text color issues */
-  .bg-blue-500, .bg-blue-600, .bg-blue-700,
-  .bg-red-500, .bg-red-600, .bg-red-700, .bg-red-800,
-  .bg-green-500, .bg-green-600, .bg-green-700,
-  .bg-sky-500, .bg-sky-600, .bg-sky-700,
-  .bg-purple-500, .bg-purple-600, .bg-purple-700,
-  .bg-primary-700, .bg-primary-800,
-  .bg-teal-700, .bg-teal-800 {
-    color: #ffffff !important;
-  }
-
-  /* Ensure button children inherit white text */
-  .bg-blue-500 *, .bg-blue-600 *, .bg-blue-700 *,
-  .bg-red-500 *, .bg-red-600 *, .bg-red-700 *, .bg-red-800 *,
-  .bg-green-500 *, .bg-green-600 *, .bg-green-700 *,
-  .bg-sky-500 *, .bg-sky-600 *, .bg-sky-700 *,
-  .bg-purple-500 *, .bg-purple-600 *, .bg-purple-700 * {
-    color: inherit !important;
-  }
-
-  /* Fix key action buttons styling */
-  #validKeys li button, #invalidKeys li button {
-    font-size: 0.75rem !important; /* text-xs */
-    padding: 0.25rem 0.5rem !important; /* px-2 py-1 */
-    border-radius: 0.375rem !important; /* rounded-md */
-    font-weight: 500 !important; /* font-medium */
-    transition: all 0.2s ease-in-out !important;
-    border: 1px solid transparent !important;
-  }
-
-  /* Verify button (green) */
-  #validKeys li button.bg-green-600,
-  #invalidKeys li button.bg-green-600 {
-    background-color: #16a34a !important; /* green-600 */
-    color: #ffffff !important;
-    border-color: #15803d !important; /* green-700 */
-  }
-
-  #validKeys li button.bg-green-600:hover,
-  #invalidKeys li button.bg-green-600:hover {
-    background-color: #15803d !important; /* green-700 */
-    transform: translateY(-1px) !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-  }
-
-  /* Details button (light blue) */
-  #validKeys li button.bg-blue-600,
-  #invalidKeys li button.bg-blue-600 {
-    background-color: #3b82f6 !important; /* blue-500 - light blue */
-    color: #ffffff !important;
-    border-color: #2563eb !important; /* blue-600 */
-  }
-
-  #validKeys li button.bg-blue-600:hover,
-  #invalidKeys li button.bg-blue-600:hover {
-    background-color: #2563eb !important; /* blue-600 - darker light blue */
-    transform: translateY(-1px) !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-  }
-
-  /* Disable/Enable button (yellow/orange) */
-  #validKeys li button.bg-yellow-500,
-  #invalidKeys li button.bg-yellow-500,
-  #validKeys li button.bg-orange-500,
-  #invalidKeys li button.bg-orange-500 {
-    background-color: #f59e0b !important; /* amber-500 */
-    color: #ffffff !important;
-    border-color: #d97706 !important; /* amber-600 */
-  }
-
-  #validKeys li button.bg-yellow-500:hover,
-  #invalidKeys li button.bg-yellow-500:hover,
-  #validKeys li button.bg-orange-500:hover,
-  #invalidKeys li button.bg-orange-500:hover {
-    background-color: #d97706 !important; /* amber-600 */
-    transform: translateY(-1px) !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-  }
-
-  /* Fix pagination dropdown styling */
-  .pagination-controls select {
-    background-color: rgba(255, 255, 255, 0.95) !important;
-    color: #374151 !important; /* gray-700 */
-    border: 1px solid rgba(0, 0, 0, 0.12) !important;
-    border-radius: 0.375rem !important; /* rounded-md */
-    padding: 0.25rem 0.5rem !important;
-    font-size: 0.875rem !important; /* text-sm */
-  }
-
-  .pagination-controls select:focus {
-    border-color: #3b82f6 !important; /* blue-500 */
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
-    outline: none !important;
-  }
-
-  /* Fix pagination text */
-  .pagination-controls span, .pagination-controls label {
-    color: #374151 !important; /* gray-700 */
-    font-weight: 500 !important;
-  }
-
-  /* Fix specific pagination elements by ID and class */
-  #validKeysPageSize, #invalidKeysPageSize,
-  #itemsPerPageSelect, #invalidItemsPerPageSelect {
-    background-color: rgba(255, 255, 255, 0.95) !important;
-    color: #374151 !important; /* gray-700 */
-    border: 1px solid rgba(0, 0, 0, 0.12) !important;
-    border-radius: 0.375rem !important; /* rounded-md */
-    padding: 0.25rem 0.5rem !important;
-    font-size: 0.875rem !important; /* text-sm */
-  }
-
-  #validKeysPageSize:focus, #invalidKeysPageSize:focus,
-  #itemsPerPageSelect:focus, #invalidItemsPerPageSelect:focus {
-    border-color: #3b82f6 !important; /* blue-500 */
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
-    outline: none !important;
-  }
-
-  /* Fix pagination container text */
-  .flex.items-center.gap-2 span {
-    color: #374151 !important; /* gray-700 */
-    font-weight: 500 !important;
-  }
-
-  /* Fix any remaining form elements */
-  select, input[type="text"], input[type="number"] {
-    background-color: rgba(255, 255, 255, 0.95) !important;
-    color: #374151 !important; /* gray-700 */
-    border: 1px solid rgba(0, 0, 0, 0.12) !important;
-  }
-
-  select:focus, input[type="text"]:focus, input[type="number"]:focus {
-    border-color: #3b82f6 !important; /* blue-500 */
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
-    outline: none !important;
-  }
-
-  /* Comprehensive button text color fixes for all button states */
-  button.bg-success-600, button.bg-success-700,
-  button.bg-blue-600, button.bg-blue-700,
-  button.bg-purple-600, button.bg-purple-700,
-  button.bg-red-800, button.bg-red-900,
-  button.bg-teal-600, button.bg-teal-700,
-  button.bg-primary-700, button.bg-primary-800 {
-    color: #ffffff !important;
-    font-weight: 500 !important;
-  }
-
-  /* Slate buttons in modals use dark text on light background */
-  .modal button.bg-slate-500, .modal button.bg-slate-600, .modal button.bg-slate-700 {
-    color: #374151 !important; /* gray-700 - dark text for contrast */
-    font-weight: 500 !important;
-  }
-
-  /* Ensure button children (icons and text) inherit color */
-  button.bg-success-600 *, button.bg-success-700 *,
-  button.bg-blue-600 *, button.bg-blue-700 *,
-  button.bg-purple-600 *, button.bg-purple-700 *,
-  button.bg-red-800 *, button.bg-red-900 *,
-  button.bg-teal-600 *, button.bg-teal-700 *,
-  button.bg-primary-700 *, button.bg-primary-800 *,
-  button.bg-slate-500 *, button.bg-slate-600 *, button.bg-slate-700 * {
-    color: inherit !important;
-  }
-
-  /* Fix specific button text visibility issues */
-  .stats-card button, .key-content button {
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2) !important;
-  }
-
-  /* Fix specific label text visibility issues */
-  label[for="selectAllValid"],
-  label[for="selectAllInvalid"],
-  label[for="failCountThreshold"],
-  label[for="keySearchInput"],
-  label[for="itemsPerPageSelect"],
-  label[for="invalidFailCountThreshold"],
-  label[for="invalidKeySearchInput"],
-  label[for="invalidItemsPerPageSelect"] {
-    color: #1f2937 !important; /* gray-800 for maximum contrast */
-    font-weight: 600 !important; /* font-semibold for better visibility */
-    text-shadow: none !important;
-  }
-
-  /* Fix pagination and control text */
-  .pagination-controls span,
-  .pagination-controls label,
-  .stats-card-header span {
-    color: #1f2937 !important; /* gray-800 */
-    font-weight: 500 !important;
-    text-shadow: none !important;
-  }
-  #validKeys li button.bg-red-800:hover,
-  #invalidKeys li button.bg-red-800:hover {
-    background-color: rgba(153, 27, 27, 0.75) !important; /* Based on red-800 */
-    border-color: rgba(153, 27, 27, 0.95);
-  }
-
-  /* 新增：密钥列表内状态标签颜色调整 */
-  /* 有效标签 (绿色) - 改为更好的对比度 */
-  #validKeys li span.bg-success-50.text-success-600,
-  #invalidKeys li span.bg-success-50.text-success-600 {
-    background-color: rgba(34, 197, 94, 0.15) !important; /* green-500 with low opacity */
-    color: #16a34a !important; /* green-600 for better contrast on light background */
-    border: 1px solid rgba(22, 163, 74, 0.3) !important; /* green-600 border */
-    font-weight: 600 !important; /* Make text bolder for better readability */
-    text-shadow: none !important; /* Remove any text shadow */
-  }
-
-  /* 失败计数标签 (黄色) - 改为更好的对比度 */
-  #validKeys li span.bg-amber-50.text-amber-600,
-  #invalidKeys li span.bg-amber-50.text-amber-600 {
-    background-color: rgba(251, 191, 36, 0.15) !important; /* amber-400 with low opacity */
-    color: #d97706 !important; /* amber-600 for better contrast on light background */
-    border: 1px solid rgba(217, 119, 6, 0.3) !important; /* amber-600 border */
-    position: absolute; /* 移动到右下角 */
-    bottom: 0.75rem; /* 配合li的p-3内边距 */
-    right: 0.75rem;
-    z-index: 5; /* 确保在其他元素之上 */
-    font-weight: 600 !important; /* Make text bolder for better readability */
-    text-shadow: none !important; /* Remove any text shadow */
-  }
-
-  /* 无效标签 (红色) - for invalidKeys list */
-  #invalidKeys li span.bg-danger-50.text-danger-600 {
-    background-color: rgba(239, 68, 68, 0.08) !important; /* 更浅的背景色 */
-    color: #f87171 !important; /* 更浅的红色文字 */
-    border: 1px solid rgba(239, 68, 68, 0.15); /* 更浅的边框 */
-    font-weight: 600 !important; /* 加粗字体 */
-  }
-
-  /* Remove border from the last row's cells in API Call Details Modal table */
-  #apiCallDetailsContent table tr:last-child td {
-    border-bottom: none !important;
-  }
-
-  /* Restore success/failure status colors and icon colors within the API call details table */
-  #apiCallDetailsContent table td span[class*="text-success"],
-  #apiCallDetailsContent table td span[class*="success"] {
-    color: #6ee7b7 !important; /* Theme success green */
-  }
-  #apiCallDetailsContent table td span[class*="text-success"] i,
-  #apiCallDetailsContent table td span[class*="success"] i {
-    color: #6ee7b7 !important;
-  }
-
-  #apiCallDetailsContent table td span[class*="text-danger"],
-  #apiCallDetailsContent table td span[class*="failure"],
-  #apiCallDetailsContent table td span[class*="danger"] {
-    color: #fca5b3 !important; /* Theme failure red */
-  }
-  #apiCallDetailsContent table td span[class*="text-danger"] i,
-  #apiCallDetailsContent table td span[class*="failure"] i,
-  #apiCallDetailsContent table td span[class*="danger"] i {
-    color: #fca5b3 !important;
-  }
-  /* End of API Call Details Modal Specific Styling Adjustments */
-
-  /* 下拉菜单样式 */
-  .dropdown-menu {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    background-color: rgba(255, 255, 255, 0.98);
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 0.5rem;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    min-width: 200px;
-    z-index: 1000;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(-10px);
-    transition: all 0.2s ease-in-out;
-  }
-
-  .dropdown-menu.show {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-  }
-
-  .dropdown-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    color: #374151;
-    text-decoration: none;
-    transition: all 0.2s ease-in-out;
-    cursor: pointer;
-    border: none;
-    background: none;
-    width: 100%;
-    text-align: left;
-    font-size: 0.875rem;
-  }
-
-  .dropdown-item:hover {
-    background-color: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
-  }
-
-  .dropdown-item:first-child {
-    border-top-left-radius: 0.5rem;
-    border-top-right-radius: 0.5rem;
-  }
-
-  .dropdown-item:last-child {
-    border-bottom-left-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-  }
-
-  .dropdown-item i {
-    width: 1rem;
-    text-align: center;
-  }
-
-  .dropdown-toggle {
-    position: relative;
-  }
-</style>
-{% endblock %} {% block head_extra_scripts %}
-<!-- keys_status.js needs to be loaded in head because it might be used by inline scripts -->
-<script src="/static/js/keys_status.js"></script>
-{% endblock %} {% block content %}
-<div class="container max-w-6xl mx-auto px-4">
-  <!-- Increased max-width -->
-  <div class="glass-card rounded-2xl shadow-xl p-6 md:p-8">
-    <div class="absolute top-6 right-6 flex items-center gap-3">
-      <!-- 自动刷新开关 -->
-      <div class="flex items-center text-sm select-none font-semibold" style="color: #1f2937 !important;">
-        <span class="mr-2">自动刷新</span>
-        <div
-          class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"
-        >
-          <input
-            type="checkbox"
-            name="autoRefreshToggle"
-            id="autoRefreshToggle"
-            class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-          />
-          <label
-            for="autoRefreshToggle"
-            class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-          ></label>
+    @media (min-width: 768px) {
+      /* md breakpoint */
+      #validKeys,
+      #invalidKeys {
+        grid-template-columns: repeat(
+          2,
+          1fr
+        ); /* Two columns on medium screens and up */
+      }
+    }
+  
+    /* 修改密钥列表背景和卡片样式 */
+    .key-content {
+      background-color: rgba(249, 250, 251, 0.8) !important;
+    }
+  
+    #validKeys li,
+    #invalidKeys li {
+      background-color: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+      padding-left: 2.5rem; /* 为自定义复选框留出空间 */
+    }
+  
+    #validKeys li:hover,
+    #invalidKeys li:hover {
+      border-color: rgba(0, 0, 0, 0.12);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      transform: translateY(-2px);
+      background-color: rgba(249, 250, 251, 0.95);
+    }
+  
+    #validKeys li.selected,
+    #invalidKeys li.selected {
+      background-color: rgba(239, 246, 255, 0.95);
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+  
+    /* 隐藏原生复选框 */
+    .key-checkbox {
+      display: none;
+    }
+  
+    /* 自定义复选框样式 */
+    #validKeys li::before,
+    #invalidKeys li::before {
+      content: "";
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 1.25rem; /* 20px */
+      height: 1.25rem; /* 20px */
+      border: 2px solid rgba(156, 163, 175, 0.7); /* gray-400 */
+      border-radius: 0.375rem; /* 6px */
+      background-color: rgba(255, 255, 255, 0.9);
+      transition: all 0.2s ease-in-out;
+    }
+  
+    #validKeys li.selected::before,
+    #invalidKeys li.selected::before {
+      background-color: #3b82f6; /* blue-500 */
+      border-color: #2563eb; /* blue-600 */
+    }
+  
+    /* 自定义复选框对勾样式 */
+    #validKeys li.selected::after,
+    #invalidKeys li.selected::after {
+      content: "\f00c"; /* Font Awesome check icon */
+      font-family: "Font Awesome 5 Free";
+      font-weight: 900;
+      position: absolute;
+      left: calc(0.75rem + 0.3rem); /* 调整对勾位置 */
+      top: 50%;
+      transform: translateY(-50%) scale(0.9);
+      color: white;
+      font-size: 0.8rem;
+    }
+  
+    .key-text {
+      color: #374151 !important; /* gray-700 for light theme */
+      text-shadow: none;
+      font-weight: 500;
+    }
+  
+    /* 模态框背景色调整 - comprehensive modal styling */
+    #apiCallDetailsModal .bg-white,
+    #keyUsageDetailsModal .bg-white,
+    #resultModal .bg-white,
+    #resetModal .bg-white,
+    #verifyModal .bg-white,
+    .modal .bg-white {
+      background-color: rgba(255, 255, 255, 0.98) !important;
+      color: #374151 !important; /* gray-700 */
+      border-color: rgba(0, 0, 0, 0.08) !important;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+    }
+  
+    /* 模态框标题颜色 */
+    #apiCallDetailsModalTitle,
+    #keyUsageDetailsModalTitle,
+    #resultModalTitle,
+    #resetModalTitle,
+    #verifyModalTitle {
+      color: #1f2937 !important; /* gray-800 */
+      text-shadow: none;
+      font-weight: 600;
+    }
+  
+    /* 密钥使用详情模态框头部特定样式 */
+    #keyUsageDetailsModal .bg-white > div.border-b {
+      /* 针对头部区域的下边框 */
+      border-bottom-color: rgba(0, 0, 0, 0.12) !important;
+    }
+  
+    /* 模态框消息文本颜色 */
+    #apiCallDetailsContent,
+    #keyUsageDetailsContent,
+    #resultModalMessage,
+    #resetModalMessage,
+    #verifyModalMessage {
+      color: #374151 !important; /* gray-700 */
+    }
+  
+    /* 特定调整操作结果模态框的消息区域样式 */
+    #resultModalMessage {
+      background-color: rgba(255, 255, 255, 0.95) !important; /* 浅色背景 */
+      border-color: rgba(0, 0, 0, 0.08) !important; /* 浅色边框 */
+      color: #374151 !important; /* 深色文本 */
+    }
+  
+    /* 批量验证结果中普通信息列表 (如成功密钥列表) 的浅色主题样式 */
+    #resultModalMessage ul[class*="bg-gray-50"] {
+      /* 针对特定灰色背景色的ul */
+      background-color: rgba(249, 250, 251, 0.95) !important; /* 浅灰色背景 */
+      border-color: rgba(0, 0, 0, 0.08) !important; /* 浅色边框 */
+    }
+  
+    #resultModalMessage ul[class*="bg-gray-50"] li {
+      color: #374151 !important; /* 深色文本 */
+    }
+  
+    /* 批量验证结果中失败列表的浅色主题样式 */
+    #resultModalMessage ul[class*="bg-red-50"] {
+      /* 针对特定背景色的ul */
+      background-color: rgba(254, 242, 242, 0.95) !important; /* 浅红色背景 */
+      border-color: rgba(239, 68, 68, 0.2) !important; /* 浅红色边框 */
+    }
+  
+    /* 失败列表中的密钥文本 (如 AIza...lJ6E) */
+    #resultModalMessage ul[class*="bg-red-50"] li span.font-mono {
+      color: #dc2626 !important; /* 深红色文本 */
+    }
+  
+    /* 失败列表中的 "收起/展开" 按钮 - 协调的红色主题设计 */
+    #resultModalMessage ul[class*="bg-red-50"] li button[class*="bg-red-200"] {
+      background-color: #dc2626 !important; /* 深红色按钮背景，与外框协调 */
+      color: #ffffff !important; /* 白色按钮文本 */
+      border: 1px solid #b91c1c !important; /* 更深的红色边框 */
+      box-shadow: none !important;
+      font-weight: 500 !important; /* 增强文字粗细以提高可读性 */
+    }
+    #resultModalMessage
+      ul[class*="bg-red-50"]
+      li
+      button[class*="bg-red-200"]:hover {
+      background-color: #b91c1c !important; /* 悬停时更深的红色背景 */
+      color: #ffffff !important; /* 悬停时白色按钮文本 */
+      transform: translateY(-1px) !important; /* 轻微上移效果 */
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important; /* 悬停阴影效果 */
+    }
+  
+    /* 失败列表中的错误详情框 - 与红色主题协调的样式 */
+    #resultModalMessage ul[class*="bg-red-50"] li div[id^="error-details-"] {
+      background-color: rgba(254, 242, 242, 0.8) !important; /* 更浅的红色背景，与外框协调 */
+      border-color: rgba(248, 113, 113, 0.3) !important; /* 浅红色边框 */
+      color: #7f1d1d !important; /* 深红色文本，确保良好对比度 */
+      font-weight: 500 !important; /* 增强文字粗细以提高可读性 */
+      line-height: 1.5 !important; /* 改善行高以提高可读性 */
+    }
+  
+    /* 密钥使用详情模态框内表格表头样式 */
+    #keyUsageDetailsModal #keyUsageDetailsContent table th {
+      background-color: rgba(243, 244, 246, 0.95) !important; /* 浅灰色背景 */
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important; /* 浅色边框 */
+      color: #374151 !important; /* 深色文字 */
+      text-shadow: none; /* 移除文本阴影 */
+    }
+  
+    /* 密钥使用详情模态框表格单元格样式已移除，使用默认颜色与API调用详情保持一致 */
+  
+    /* 按钮文本颜色 */
+    .stats-card button {
+      color: #ffffff;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    }
+  
+    /* 表单控件背景 */
+    .form-input,
+    .form-select {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      color: #374151 !important; /* gray-700 */
+      border-color: rgba(0, 0, 0, 0.12) !important;
+    }
+  
+    /* 标签文字颜色 */
+    .text-gray-500,
+    .text-gray-600,
+    .text-gray-700 {
+      color: #374151 !important; /* dark gray for light theme */
+      text-shadow: none;
+    }
+  
+    /* 调整全局背景色，使之与白色背景更加协调 */
+    .glass-card {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+  
+    /* 分页控件样式增强 */
+    .pagination-button {
+      background-color: rgba(255, 255, 255, 0.9);
+      color: #374151; /* gray-700 */
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      text-shadow: none;
+    }
+  
+    .pagination-button.active {
+      background-color: #3b82f6; /* blue-500 */
+      color: white;
+      border-color: #2563eb; /* blue-600 */
+    }
+  
+    /* 状态标签增强 */
+    .inline-flex.items-center.px-2\.5.py-0\.5.rounded-full {
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    }
+  
+    /* 按钮颜色增强 */
+    button.bg-success-600,
+    button.bg-blue-600,
+    button.bg-slate-500,
+    button.bg-purple-600,
+    button.bg-primary-700,
+    button.bg-teal-600 {
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    }
+  
+    /* 复选框文本样式 */
+    input[type="checkbox"] + label {
+      color: #f1f5f9 !important;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    }
+  
+    /* 底部版权栏文本颜色修正 */
+    .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-200,
+    .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-300,
+    .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-400,
+    .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-500,
+    .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-600,
+    .fixed.bottom-0.left-0.w-full.py-3.bg-white .text-gray-700 {
+      color: #1f2937 !important; /* 使用更深的灰色提高对比度 */
+      text-shadow: none !important;
+    }
+  
+    /* 导航链接悬停样式 - 优化以避免遮挡内容 */
+    .nav-link {
+      transition: all 0.2s ease-in-out;
+      position: relative;
+      z-index: 1; /* 确保不会遮挡重要内容 */
+    }
+  
+    .nav-link:hover {
+      background-color: rgba(59, 130, 246, 0.1) !important; /* blue-500 light */
+      transform: scale(1.02); /* 使用缩放代替向上移动 */
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); /* 增强阴影效果 */
+    }
+  
+    /* 导航按钮容器样式 - 为悬停效果预留空间 */
+    .nav-buttons-container {
+      padding-top: 0.5rem; /* 为悬停效果预留上方空间 */
+      padding-bottom: 0.75rem; /* 为悬停效果预留下方空间 */
+    }
+  
+    /* 主导航按钮的优化悬停效果 */
+    .main-nav-btn:hover {
+      transform: scale(1.02) !important; /* 使用缩放代替向上移动 */
+      box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3) !important; /* 蓝色阴影 */
+    }
+  
+    /* Active navigation tab */
+    .bg-violet-600 {
+      background-color: #3b82f6 !important; /* blue-500 */
+      color: #ffffff !important;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+      transform: translateY(-1px) !important;
+      border: 1px solid #2563eb !important; /* blue-600 */
+    }
+  
+    .bg-violet-600:hover {
+      background-color: #2563eb !important; /* blue-600 */
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.15), 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    }
+  
+    /* Fix page title gradient */
+    .text-transparent.bg-clip-text.bg-gradient-to-r.from-violet-400.to-pink-400 {
+      background: none !important;
+      color: #1f2937 !important; /* gray-800 */
+      -webkit-background-clip: unset !important;
+      background-clip: unset !important;
+    }
+  
+    /* Fix refresh button */
+    .bg-white.bg-opacity-20 {
+      background-color: rgba(255, 255, 255, 0.9) !important;
+      color: #3b82f6 !important; /* blue-500 */
+    }
+  
+    .bg-white.bg-opacity-20:hover {
+      background-color: rgba(255, 255, 255, 1) !important;
+    }
+  
+    /* Fix batch actions area purple background */
+    #validBatchActions, #invalidBatchActions {
+      background-color: rgba(249, 250, 251, 0.95) !important; /* light gray */
+      border-color: rgba(0, 0, 0, 0.08) !important;
+    }
+  
+    #validBatchActions .text-gray-200, #invalidBatchActions .text-gray-200 {
+      color: #374151 !important; /* dark gray */
+    }
+  
+    /* Fix primary button colors */
+    .bg-primary-600, .bg-primary-700, .bg-primary-800 {
+      background-color: #3b82f6 !important; /* blue-500 */
+    }
+  
+    .bg-primary-600:hover, .bg-primary-700:hover, .bg-primary-800:hover {
+      background-color: #2563eb !important; /* blue-600 */
+    }
+  
+    /* Fix text-primary colors */
+    .text-primary-600 {
+      color: #3b82f6 !important; /* blue-500 */
+    }
+  
+    /* Fix form input focus colors */
+    .focus\\:ring-primary-500:focus {
+      --tw-ring-color: rgba(59, 130, 246, 0.2) !important;
+    }
+  
+    .focus\\:border-primary-500:focus {
+      border-color: #3b82f6 !important;
+    }
+  
+    /* 新增：密钥列表内按钮背景和悬停颜色调整 */
+    /* 验证按钮 (绿色) */
+    #validKeys li button.bg-success-600,
+    #invalidKeys li button.bg-success-600 {
+      background-color: rgba(22, 163, 74, 0.65) !important;
+      border: 1px solid rgba(22, 163, 74, 0.85);
+    }
+    #validKeys li button.bg-success-600:hover,
+    #invalidKeys li button.bg-success-600:hover {
+      background-color: rgba(21, 128, 61, 0.75) !important;
+      border-color: rgba(21, 128, 61, 0.95);
+    }
+  
+    /* 重置按钮 (加深灰色底，白色文字) */
+    #validKeys li button.bg-gray-500,
+    #invalidKeys li button.bg-gray-500 {
+      background-color: #6b7280 !important; /* gray-500 - 加深的灰色底 */
+      border: 1px solid #4b5563 !important; /* gray-600 */
+      color: #ffffff !important; /* white - 白色文字 */
+    }
+    #validKeys li button.bg-gray-500:hover,
+    #invalidKeys li button.bg-gray-500:hover {
+      background-color: #4b5563 !important; /* gray-600 - 更深的灰色 */
+      border-color: #374151 !important; /* gray-700 */
+      color: #ffffff !important; /* white - 白色文字 */
+    }
+  
+    /* 复制按钮 (蓝色底色，白色文字) */
+    #validKeys li button.bg-blue-500,
+    #invalidKeys li button.bg-blue-500 {
+      background-color: #3b82f6 !important; /* blue-500 - 蓝色底 */
+      border: 1px solid #2563eb !important; /* blue-600 */
+      color: #ffffff !important; /* Keep white text as specified in HTML */
+    }
+    #validKeys li button.bg-blue-500:hover,
+    #invalidKeys li button.bg-blue-500:hover {
+      background-color: #2563eb !important; /* blue-600 - 深蓝色hover */
+      border-color: #1d4ed8 !important; /* blue-700 */
+      color: #ffffff !important; /* Keep white text on hover */
+    }
+  
+    /* 详情按钮 (改为蓝色) */
+    #validKeys li button.bg-purple-600,
+    #invalidKeys li button.bg-purple-600 {
+      background-color: rgba(59, 130, 246, 0.8) !important; /* blue-500 */
+      border: 1px solid rgba(59, 130, 246, 0.9);
+    }
+    #validKeys li button.bg-purple-600:hover,
+    #invalidKeys li button.bg-purple-600:hover {
+      background-color: rgba(37, 99, 235, 0.9) !important; /* blue-600 */
+      border-color: rgba(37, 99, 235, 1);
+    }
+  
+    /* 删除按钮 (鲜艳浅红色) - HTML中使用 bg-red-800 */
+    #validKeys li button.bg-red-800,
+    #invalidKeys li button.bg-red-800 {
+      background-color: #f87171 !important; /* red-400 - bright light red */
+      border: 1px solid #ef4444 !important; /* red-500 */
+      color: #ffffff !important; /* Ensure white text */
+    }
+  
+    #validKeys li button.bg-red-800:hover,
+    #invalidKeys li button.bg-red-800:hover {
+      background-color: #ef4444 !important; /* red-500 - darker bright light red */
+      border-color: #dc2626 !important; /* red-600 */
+    }
+  
+    /* Comprehensive purple to light theme conversion */
+    [style*="background-color: rgba(80, 60, 160"],
+    [style*="background-color: rgba(70, 50, 150"],
+    [style*="background-color: rgba(120, 100, 200"] {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      border-color: rgba(0, 0, 0, 0.08) !important;
+      color: #374151 !important;
+    }
+  
+    /* Fix modal button colors - specific overrides for keys_status.html */
+    /* Blue buttons in modals */
+    .bg-blue-600, button.bg-blue-600,
+    .bg-blue-700, button.bg-blue-700 {
+      background-color: #3b82f6 !important; /* blue-500 - light blue */
+    }
+  
+    .bg-blue-600:hover, button.bg-blue-600:hover,
+    .bg-blue-700:hover, button.bg-blue-700:hover,
+    .hover\\:bg-blue-700:hover, .hover\\:bg-blue-800:hover {
+      background-color: #2563eb !important; /* blue-600 - darker light blue */
+    }
+  
+    /* Red buttons in modals */
+    .bg-red-700, button.bg-red-700,
+    .bg-red-800, button.bg-red-800 {
+      background-color: #f87171 !important; /* red-400 - bright light red */
+    }
+  
+    .bg-red-700:hover, button.bg-red-700:hover,
+    .bg-red-800:hover, button.bg-red-800:hover,
+    .hover\\:bg-red-800:hover {
+      background-color: #ef4444 !important; /* red-500 - darker bright light red */
+    }
+  
+    /* Primary buttons in modals */
+    .bg-primary-700, button.bg-primary-700,
+    .bg-primary-800, button.bg-primary-800 {
+      background-color: #3b82f6 !important; /* blue-500 - light blue */
+    }
+  
+    .bg-primary-700:hover, button.bg-primary-700:hover,
+    .bg-primary-800:hover, button.bg-primary-800:hover,
+    .hover\\:bg-primary-800:hover {
+      background-color: #2563eb !important; /* blue-600 - darker light blue */
+    }
+  
+    /* Teal buttons in modals (for verify button) */
+    .bg-teal-700, button.bg-teal-700,
+    .bg-teal-800, button.bg-teal-800 {
+      background-color: #3b82f6 !important; /* blue-500 - light blue (change teal to light blue) */
+    }
+  
+    .bg-teal-700:hover, button.bg-teal-700:hover,
+    .bg-teal-800:hover, button.bg-teal-800:hover,
+    .hover\\:bg-teal-800:hover {
+      background-color: #2563eb !important; /* blue-600 - darker light blue */
+    }
+  
+    /* Global slate/gray button color overrides - only for modal buttons */
+    /* Modal slate buttons should be light gray with dark text */
+    .modal .bg-slate-500, .modal button.bg-slate-500,
+    .modal .bg-slate-600, .modal button.bg-slate-600,
+    .modal .bg-slate-700, .modal button.bg-slate-700 {
+      background-color: #e5e7eb !important; /* gray-200 - light gray */
+      color: #374151 !important; /* gray-700 - dark text for contrast */
+    }
+  
+    .modal .bg-slate-500:hover, .modal button.bg-slate-500:hover,
+    .modal .bg-slate-600:hover, .modal button.bg-slate-600:hover,
+    .modal .bg-slate-700:hover, .modal button.bg-slate-700:hover,
+    .modal .hover\\:bg-slate-600:hover, .modal .hover\\:bg-slate-700:hover {
+      background-color: #d1d5db !important; /* gray-300 - darker light gray */
+      color: #374151 !important; /* gray-700 - dark text for contrast */
+    }
+  
+    /* Fix any remaining button text color issues */
+    .bg-blue-500, .bg-blue-600, .bg-blue-700,
+    .bg-red-500, .bg-red-600, .bg-red-700, .bg-red-800,
+    .bg-green-500, .bg-green-600, .bg-green-700,
+    .bg-sky-500, .bg-sky-600, .bg-sky-700,
+    .bg-purple-500, .bg-purple-600, .bg-purple-700,
+    .bg-primary-700, .bg-primary-800,
+    .bg-teal-700, .bg-teal-800 {
+      color: #ffffff !important;
+    }
+  
+    /* Ensure button children inherit white text */
+    .bg-blue-500 *, .bg-blue-600 *, .bg-blue-700 *,
+    .bg-red-500 *, .bg-red-600 *, .bg-red-700 *, .bg-red-800 *,
+    .bg-green-500 *, .bg-green-600 *, .bg-green-700 *,
+    .bg-sky-500 *, .bg-sky-600 *, .bg-sky-700 *,
+    .bg-purple-500 *, .bg-purple-600 *, .bg-purple-700 * {
+      color: inherit !important;
+    }
+  
+    /* Fix key action buttons styling */
+    #validKeys li button, #invalidKeys li button {
+      font-size: 0.75rem !important; /* text-xs */
+      padding: 0.25rem 0.5rem !important; /* px-2 py-1 */
+      border-radius: 0.375rem !important; /* rounded-md */
+      font-weight: 500 !important; /* font-medium */
+      transition: all 0.2s ease-in-out !important;
+      border: 1px solid transparent !important;
+    }
+  
+    /* Verify button (green) */
+    #validKeys li button.bg-green-600,
+    #invalidKeys li button.bg-green-600 {
+      background-color: #16a34a !important; /* green-600 */
+      color: #ffffff !important;
+      border-color: #15803d !important; /* green-700 */
+    }
+  
+    #validKeys li button.bg-green-600:hover,
+    #invalidKeys li button.bg-green-600:hover {
+      background-color: #15803d !important; /* green-700 */
+      transform: translateY(-1px) !important;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    }
+  
+    /* Details button (light blue) */
+    #validKeys li button.bg-blue-600,
+    #invalidKeys li button.bg-blue-600 {
+      background-color: #3b82f6 !important; /* blue-500 - light blue */
+      color: #ffffff !important;
+      border-color: #2563eb !important; /* blue-600 */
+    }
+  
+    #validKeys li button.bg-blue-600:hover,
+    #invalidKeys li button.bg-blue-600:hover {
+      background-color: #2563eb !important; /* blue-600 - darker light blue */
+      transform: translateY(-1px) !important;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    }
+  
+    /* Disable/Enable button (yellow/orange) */
+    #validKeys li button.bg-yellow-500,
+    #invalidKeys li button.bg-yellow-500,
+    #validKeys li button.bg-orange-500,
+    #invalidKeys li button.bg-orange-500 {
+      background-color: #f59e0b !important; /* amber-500 */
+      color: #ffffff !important;
+      border-color: #d97706 !important; /* amber-600 */
+    }
+  
+    #validKeys li button.bg-yellow-500:hover,
+    #invalidKeys li button.bg-yellow-500:hover,
+    #validKeys li button.bg-orange-500:hover,
+    #invalidKeys li button.bg-orange-500:hover {
+      background-color: #d97706 !important; /* amber-600 */
+      transform: translateY(-1px) !important;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    }
+  
+    /* Fix pagination dropdown styling */
+    .pagination-controls select {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      color: #374151 !important; /* gray-700 */
+      border: 1px solid rgba(0, 0, 0, 0.12) !important;
+      border-radius: 0.375rem !important; /* rounded-md */
+      padding: 0.25rem 0.5rem !important;
+      font-size: 0.875rem !important; /* text-sm */
+    }
+  
+    .pagination-controls select:focus {
+      border-color: #3b82f6 !important; /* blue-500 */
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+      outline: none !important;
+    }
+  
+    /* Fix pagination text */
+    .pagination-controls span, .pagination-controls label {
+      color: #374151 !important; /* gray-700 */
+      font-weight: 500 !important;
+    }
+  
+    /* Fix specific pagination elements by ID and class */
+    #validKeysPageSize, #invalidKeysPageSize,
+    #itemsPerPageSelect, #invalidItemsPerPageSelect {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      color: #374151 !important; /* gray-700 */
+      border: 1px solid rgba(0, 0, 0, 0.12) !important;
+      border-radius: 0.375rem !important; /* rounded-md */
+      padding: 0.25rem 0.5rem !important;
+      font-size: 0.875rem !important; /* text-sm */
+    }
+  
+    #validKeysPageSize:focus, #invalidKeysPageSize:focus,
+    #itemsPerPageSelect:focus, #invalidItemsPerPageSelect:focus {
+      border-color: #3b82f6 !important; /* blue-500 */
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+      outline: none !important;
+    }
+  
+    /* Fix pagination container text */
+    .flex.items-center.gap-2 span {
+      color: #374151 !important; /* gray-700 */
+      font-weight: 500 !important;
+    }
+  
+    /* Fix any remaining form elements */
+    select, input[type="text"], input[type="number"] {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      color: #374151 !important; /* gray-700 */
+      border: 1px solid rgba(0, 0, 0, 0.12) !important;
+    }
+  
+    select:focus, input[type="text"]:focus, input[type="number"]:focus {
+      border-color: #3b82f6 !important; /* blue-500 */
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+      outline: none !important;
+    }
+  
+    /* Comprehensive button text color fixes for all button states */
+    button.bg-success-600, button.bg-success-700,
+    button.bg-blue-600, button.bg-blue-700,
+    button.bg-purple-600, button.bg-purple-700,
+    button.bg-red-800, button.bg-red-900,
+    button.bg-teal-600, button.bg-teal-700,
+    button.bg-primary-700, button.bg-primary-800 {
+      color: #ffffff !important;
+      font-weight: 500 !important;
+    }
+  
+    /* Slate buttons in modals use dark text on light background */
+    .modal button.bg-slate-500, .modal button.bg-slate-600, .modal button.bg-slate-700 {
+      color: #374151 !important; /* gray-700 - dark text for contrast */
+      font-weight: 500 !important;
+    }
+  
+    /* Ensure button children (icons and text) inherit color */
+    button.bg-success-600 *, button.bg-success-700 *,
+    button.bg-blue-600 *, button.bg-blue-700 *,
+    button.bg-purple-600 *, button.bg-purple-700 *,
+    button.bg-red-800 *, button.bg-red-900 *,
+    button.bg-teal-600 *, button.bg-teal-700 *,
+    button.bg-primary-700 *, button.bg-primary-800 *,
+    button.bg-slate-500 *, button.bg-slate-600 *, button.bg-slate-700 * {
+      color: inherit !important;
+    }
+  
+    /* Fix specific button text visibility issues */
+    .stats-card button, .key-content button {
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2) !important;
+    }
+  
+    /* Fix specific label text visibility issues */
+    label[for="selectAllValid"],
+    label[for="selectAllInvalid"],
+    label[for="failCountThreshold"],
+    label[for="keySearchInput"],
+    label[for="itemsPerPageSelect"],
+    label[for="invalidFailCountThreshold"],
+    label[for="invalidKeySearchInput"],
+    label[for="invalidItemsPerPageSelect"] {
+      color: #1f2937 !important; /* gray-800 for maximum contrast */
+      font-weight: 600 !important; /* font-semibold for better visibility */
+      text-shadow: none !important;
+    }
+  
+    /* Fix pagination and control text */
+    .pagination-controls span,
+    .pagination-controls label,
+    .stats-card-header span {
+      color: #1f2937 !important; /* gray-800 */
+      font-weight: 500 !important;
+      text-shadow: none !important;
+    }
+    #validKeys li button.bg-red-800:hover,
+    #invalidKeys li button.bg-red-800:hover {
+      background-color: rgba(153, 27, 27, 0.75) !important; /* Based on red-800 */
+      border-color: rgba(153, 27, 27, 0.95);
+    }
+  
+    /* 新增：密钥列表内状态标签颜色调整 */
+    /* 有效标签 (绿色) - 改为更好的对比度 */
+    #validKeys li span.bg-success-50.text-success-600,
+    #invalidKeys li span.bg-success-50.text-success-600 {
+      background-color: rgba(34, 197, 94, 0.15) !important; /* green-500 with low opacity */
+      color: #16a34a !important; /* green-600 for better contrast on light background */
+      border: 1px solid rgba(22, 163, 74, 0.3) !important; /* green-600 border */
+      font-weight: 600 !important; /* Make text bolder for better readability */
+      text-shadow: none !important; /* Remove any text shadow */
+    }
+  
+    /* 失败计数标签 (黄色) - 改为更好的对比度 */
+    #validKeys li span.bg-amber-50.text-amber-600,
+    #invalidKeys li span.bg-amber-50.text-amber-600 {
+      background-color: rgba(251, 191, 36, 0.15) !important; /* amber-400 with low opacity */
+      color: #d97706 !important; /* amber-600 for better contrast on light background */
+      border: 1px solid rgba(217, 119, 6, 0.3) !important; /* amber-600 border */
+      position: absolute; /* 移动到右下角 */
+      bottom: 0.75rem; /* 配合li的p-3内边距 */
+      right: 0.75rem;
+      z-index: 5; /* 确保在其他元素之上 */
+      font-weight: 600 !important; /* Make text bolder for better readability */
+      text-shadow: none !important; /* Remove any text shadow */
+    }
+  
+    /* 无效标签 (红色) - for invalidKeys list */
+    #invalidKeys li span.bg-danger-50.text-danger-600 {
+      background-color: rgba(239, 68, 68, 0.08) !important; /* 更浅的背景色 */
+      color: #f87171 !important; /* 更浅的红色文字 */
+      border: 1px solid rgba(239, 68, 68, 0.15); /* 更浅的边框 */
+      font-weight: 600 !important; /* 加粗字体 */
+    }
+  
+    /* Remove border from the last row's cells in API Call Details Modal table */
+    #apiCallDetailsContent table tr:last-child td {
+      border-bottom: none !important;
+    }
+  
+    /* Restore success/failure status colors and icon colors within the API call details table */
+    #apiCallDetailsContent table td span[class*="text-success"],
+    #apiCallDetailsContent table td span[class*="success"] {
+      color: #6ee7b7 !important; /* Theme success green */
+    }
+    #apiCallDetailsContent table td span[class*="text-success"] i,
+    #apiCallDetailsContent table td span[class*="success"] i {
+      color: #6ee7b7 !important;
+    }
+  
+    #apiCallDetailsContent table td span[class*="text-danger"],
+    #apiCallDetailsContent table td span[class*="failure"],
+    #apiCallDetailsContent table td span[class*="danger"] {
+      color: #fca5b3 !important; /* Theme failure red */
+    }
+    #apiCallDetailsContent table td span[class*="text-danger"] i,
+    #apiCallDetailsContent table td span[class*="failure"] i,
+    #apiCallDetailsContent table td span[class*="danger"] i {
+      color: #fca5b3 !important;
+    }
+    /* End of API Call Details Modal Specific Styling Adjustments */
+  
+    /* 下拉菜单样式 */
+    .dropdown-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: rgba(255, 255, 255, 0.98);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 0.5rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      min-width: 200px;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.2s ease-in-out;
+    }
+  
+    .dropdown-menu.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+  
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      color: #374151;
+      text-decoration: none;
+      transition: all 0.2s ease-in-out;
+      cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+      font-size: 0.875rem;
+    }
+  
+    .dropdown-item:hover {
+      background-color: rgba(59, 130, 246, 0.1);
+      color: #3b82f6;
+    }
+  
+    .dropdown-item:first-child {
+      border-top-left-radius: 0.5rem;
+      border-top-right-radius: 0.5rem;
+    }
+  
+    .dropdown-item:last-child {
+      border-bottom-left-radius: 0.5rem;
+      border-bottom-right-radius: 0.5rem;
+    }
+  
+    .dropdown-item i {
+      width: 1rem;
+      text-align: center;
+    }
+  
+    .dropdown-toggle {
+      position: relative;
+    }
+  </style>
+  {% endblock %} {% block head_extra_scripts %}
+  <!-- keys_status.js needs to be loaded in head because it might be used by inline scripts -->
+  <script src="/static/js/keys_status.js"></script>
+  {% endblock %} {% block content %}
+  <div class="container max-w-6xl mx-auto px-4">
+    <!-- Increased max-width -->
+    <div class="glass-card rounded-2xl shadow-xl p-6 md:p-8">
+      <div class="absolute top-6 right-6 flex items-center gap-3">
+        <!-- 自动刷新开关 -->
+        <div class="flex items-center text-sm select-none font-semibold" style="color: #1f2937 !important;">
+          <span class="mr-2">自动刷新</span>
+          <div
+            class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in"
+          >
+            <input
+              type="checkbox"
+              name="autoRefreshToggle"
+              id="autoRefreshToggle"
+              class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+            />
+            <label
+              for="autoRefreshToggle"
+              class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+            ></label>
+          </div>
         </div>
-      </div>
-      <!-- 手动刷新按钮 -->
-      <button
-        class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center text-primary-600 transition-all duration-300"
-        onclick="refreshPage(this)"
-        title="手动刷新"
-      >
-        <i class="fas fa-sync-alt"></i>
-      </button>
-      <!-- 下拉菜单按钮 -->
-      <div class="dropdown-toggle relative">
+        <!-- 手动刷新按钮 -->
         <button
-          id="dropdownMenuButton"
           class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center text-primary-600 transition-all duration-300"
-          onclick="toggleDropdownMenu()"
-          title="更多操作"
+          onclick="refreshPage(this)"
+          title="手动刷新"
         >
-          <i class="fas fa-ellipsis-v"></i>
+          <i class="fas fa-sync-alt"></i>
         </button>
-        <!-- 下拉菜单 -->
-        <div id="dropdownMenu" class="dropdown-menu">
-          <button class="dropdown-item" onclick="copyAllKeys()">
-            <i class="fas fa-copy"></i>
-            <span>复制全部密钥</span>
+        <!-- 下拉菜单按钮 -->
+        <div class="dropdown-toggle relative">
+          <button
+            id="dropdownMenuButton"
+            class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center text-primary-600 transition-all duration-300"
+            onclick="toggleDropdownMenu()"
+            title="更多操作"
+          >
+            <i class="fas fa-ellipsis-v"></i>
           </button>
-          <button class="dropdown-item" onclick="verifyAllKeys()">
-            <i class="fas fa-check-double"></i>
-            <span>验证所有密钥</span>
-          </button>
+          <!-- 下拉菜单 -->
+          <div id="dropdownMenu" class="dropdown-menu">
+            <button class="dropdown-item" onclick="copyAllKeys()">
+              <i class="fas fa-copy"></i>
+              <span>复制全部密钥</span>
+            </button>
+            <button class="dropdown-item" onclick="verifyAllKeys()">
+              <i class="fas fa-check-double"></i>
+              <span>验证所有密钥</span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-
-    <h1
-      class="text-3xl font-extrabold text-center text-gray-800 mb-4"
-    >
-      <img
-        src="/static/icons/logo.png"
-        alt="Gemini Balance Logo"
-        class="h-9 inline-block align-middle mr-2"
-      />
-      Gemini Balance - 监控面板
-    </h1>
-
-    <!-- Navigation Tabs -->
-    <div class="nav-buttons-container flex justify-center mb-8 overflow-x-auto gap-2">
-      <a
-        href="/config"
-        class="nav-link whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 font-medium rounded-lg text-gray-700 hover:text-gray-900 transition-all duration-200"
-        style="background-color: rgba(229, 231, 235, 0.8)"
+  
+      <h1
+        class="text-3xl font-extrabold text-center text-gray-800 mb-4"
       >
-        <i class="fas fa-cog"></i> 配置编辑
-      </a>
-      <a
-        href="/keys"
-        class="main-nav-btn whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
-        style="background-color: #3b82f6 !important; color: #ffffff !important;"
-      >
-        <i class="fas fa-tachometer-alt"></i> 监控面板
-      </a>
-      <a
-        href="/logs"
-        class="nav-link whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 font-medium rounded-lg text-gray-700 hover:text-gray-900 transition-all duration-200"
-        style="background-color: rgba(229, 231, 235, 0.8)"
-      >
-        <i class="fas fa-exclamation-triangle"></i> 错误日志
-      </a>
-    </div>
-
-    <!-- 现代化统计面板 -->
-    <div class="stats-dashboard animate-fade-in" style="animation-delay: 0.1s">
-      <!-- 密钥统计卡片 -->
-      <div class="stats-card">
+        <img
+          src="/static/icons/logo.png"
+          alt="Gemini Balance Logo"
+          class="h-9 inline-block align-middle mr-2"
+        />
+        Gemini Balance - 监控面板
+      </h1>
+  
+      <!-- Navigation Tabs -->
+      <div class="nav-buttons-container flex justify-center mb-8 overflow-x-auto gap-2">
+        <a
+          href="/config"
+          class="nav-link whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 font-medium rounded-lg text-gray-700 hover:text-gray-900 transition-all duration-200"
+          style="background-color: rgba(229, 231, 235, 0.8)"
+        >
+          <i class="fas fa-cog"></i> 配置编辑
+        </a>
+        <a
+          href="/keys"
+          class="main-nav-btn whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+          style="background-color: #3b82f6 !important; color: #ffffff !important;"
+        >
+          <i class="fas fa-tachometer-alt"></i> 监控面板
+        </a>
+        <a
+          href="/logs"
+          class="nav-link whitespace-nowrap flex items-center justify-center gap-2 px-6 py-3 font-medium rounded-lg text-gray-700 hover:text-gray-900 transition-all duration-200"
+          style="background-color: rgba(229, 231, 235, 0.8)"
+        >
+          <i class="fas fa-exclamation-triangle"></i> 错误日志
+        </a>
+      </div>
+  
+      <!-- Base URL -->
+      <div class="stats-card mb-6 animate-fade-in" style="animation-delay: 0.15s">
         <div class="stats-card-header">
           <h3 class="stats-card-title">
-            <i class="fas fa-key"></i>
-            <span>密钥统计</span>
+            <i class="fas fa-link"></i>
+            <span>Base URLs</span>
           </h3>
-          <span class="text-xs text-gray-500">总计: {{ total_keys }}</span>
         </div>
-        <div class="stats-grid">
-          <div class="stat-item stat-primary" title="总密钥数">
-            <div class="stat-value">{{ total_keys }}</div>
-            <div class="stat-label">总密钥数</div>
-            <i class="stat-icon fas fa-key"></i>
+        <div class="p-4 space-y-4">
+          <div>
+            <label for="claudeCodeBaseURL" class="block text-sm font-medium text-gray-700">Claude Code Base URL</label>
+            <div class="flex items-center mt-1">
+              <input
+                type="text"
+                id="claudeCodeBaseURL"
+                readonly
+                class="form-input w-full bg-gray-100 border-gray-300 rounded-l-md"
+              />
+              <button
+                onclick="copyToClipboard('claudeCodeBaseURL')"
+                class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-r-md"
+              >
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
           </div>
-          <div class="stat-item stat-success" title="有效密钥">
-            <div class="stat-value">{{ valid_key_count }}</div>
-            <div class="stat-label">有效密钥</div>
-            <i class="stat-icon fas fa-check-circle"></i>
+          <div>
+            <label for="openaiBaseURL" class="block text-sm font-medium text-gray-700">OpenAI Base URL</label>
+            <div class="flex items-center mt-1">
+              <input
+                type="text"
+                id="openaiBaseURL"
+                readonly
+                class="form-input w-full bg-gray-100 border-gray-300 rounded-l-md"
+              />
+              <button
+                onclick="copyToClipboard('openaiBaseURL')"
+                class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-r-md"
+              >
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
           </div>
-          <div class="stat-item stat-danger" title="无效密钥">
-            <div class="stat-value">{{ invalid_key_count }}</div>
-            <div class="stat-label">无效密钥</div>
-            <i class="stat-icon fas fa-times-circle"></i>
+          <div>
+            <label for="hfBaseURL" class="block text-sm font-medium text-gray-700">Hugging Face Base URL</label>
+            <div class="flex items-center mt-1">
+              <input
+                type="text"
+                id="hfBaseURL"
+                readonly
+                class="form-input w-full bg-gray-100 border-gray-300 rounded-l-md"
+              />
+              <button
+                onclick="copyToClipboard('hfBaseURL')"
+                class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-r-md"
+              >
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
-
-      <!-- API调用统计卡片 -->
-      <div class="stats-card">
-        <div class="stats-card-header">
-          <h3 class="stats-card-title">
-            <i class="fas fa-chart-line"></i>
-            <span>API调用统计</span>
-          </h3>
-          <span class="text-xs text-gray-500"
-            >本月: {{ api_stats.calls_month.total }}</span
-          >
+  
+      <!-- 现代化统计面板 -->
+      <div class="stats-dashboard animate-fade-in" style="animation-delay: 0.1s">
+        <!-- 密钥统计卡片 -->
+        <div class="stats-card">
+          <div class="stats-card-header">
+            <h3 class="stats-card-title">
+              <i class="fas fa-key"></i>
+              <span>密钥统计</span>
+            </h3>
+            <span class="text-xs text-gray-500">总计: {{ total_keys }}</span>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-item stat-primary" title="总密钥数">
+              <div class="stat-value">{{ total_keys }}</div>
+              <div class="stat-label">总密钥数</div>
+              <i class="stat-icon fas fa-key"></i>
+            </div>
+            <div class="stat-item stat-success" title="有效密钥">
+              <div class="stat-value">{{ valid_key_count }}</div>
+              <div class="stat-label">有效密钥</div>
+              <i class="stat-icon fas fa-check-circle"></i>
+            </div>
+            <div class="stat-item stat-danger" title="无效密钥">
+              <div class="stat-value">{{ invalid_key_count }}</div>
+              <div class="stat-label">无效密钥</div>
+              <i class="stat-icon fas fa-times-circle"></i>
+            </div>
+          </div>
         </div>
-        <div class="stats-grid">
+  
+        <!-- API调用统计卡片 -->
+        <div class="stats-card">
+          <div class="stats-card-header">
+            <h3 class="stats-card-title">
+              <i class="fas fa-chart-line"></i>
+              <span>API调用统计</span>
+            </h3>
+            <span class="text-xs text-gray-500"
+              >本月: {{ api_stats.calls_month.total }}</span
+            >
+          </div>
+          <div class="stats-grid">
+            <div
+              class="stat-item stat-warning cursor-pointer hover:bg-amber-100"
+              title="点击查看1分钟内调用详情"
+              data-period="1m"
+              onclick="showApiCallDetails('1m', '{{ api_stats.calls_1m.total }}', '{{ api_stats.calls_1m.success }}', '{{ api_stats.calls_1m.failure }}')"
+            >
+              <div class="stat-value">{{ api_stats.calls_1m.total }}</div>
+              <div class="stat-label">1分钟调用</div>
+              <i class="stat-icon fas fa-stopwatch"></i>
+            </div>
+            <div
+              class="stat-item stat-info cursor-pointer hover:bg-blue-100"
+              title="点击查看1小时内调用详情"
+              data-period="1h"
+              onclick="showApiCallDetails('1h', '{{ api_stats.calls_1h.total }}', '{{ api_stats.calls_1h.success }}', '{{ api_stats.calls_1h.failure }}')"
+            >
+              <div class="stat-value">{{ api_stats.calls_1h.total }}</div>
+              <div class="stat-label">1小时调用</div>
+              <i class="stat-icon fas fa-hourglass-half"></i>
+            </div>
+            <div
+              class="stat-item stat-primary cursor-pointer hover:bg-indigo-100"
+              title="点击查看24小时内调用详情"
+              data-period="24h"
+              onclick="showApiCallDetails('24h', '{{ api_stats.calls_24h.total }}', '{{ api_stats.calls_24h.success }}', '{{ api_stats.calls_24h.failure }}')"
+            >
+              <div class="stat-value">{{ api_stats.calls_24h.total }}</div>
+              <div class="stat-label">24小时调用</div>
+              <i class="stat-icon fas fa-calendar-day"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+  
+      <!-- 有效密钥区域 -->
+      <div class="stats-card mb-6 animate-fade-in" style="animation-delay: 0.2s">
+        <div
+          class="stats-card-header cursor-pointer"
+          onclick="toggleSection(this, 'validKeys')"
+        >
+          <!-- Left side: Title and Toggle Icon -->
+          <div class="flex items-center gap-3 flex-shrink-0">
+            <!-- Prevent shrinking -->
+            <i class="fas fa-chevron-down toggle-icon text-primary-600"></i>
+            <i class="fas fa-check-circle text-success-500"></i>
+            <h2 class="text-lg font-semibold whitespace-nowrap">
+              有效密钥列表 ({{ valid_key_count }})
+            </h2>
+          </div>
+          <!-- Middle: Filters and Search (Allow wrapping) -->
           <div
-            class="stat-item stat-warning cursor-pointer hover:bg-amber-100"
-            title="点击查看1分钟内调用详情"
-            data-period="1m"
-            onclick="showApiCallDetails('1m', '{{ api_stats.calls_1m.total }}', '{{ api_stats.calls_1m.success }}', '{{ api_stats.calls_1m.failure }}')"
+            class="flex items-center gap-x-4 gap-y-2 flex-grow flex-wrap justify-start md:justify-center"
           >
-            <div class="stat-value">{{ api_stats.calls_1m.total }}</div>
-            <div class="stat-label">1分钟调用</div>
-            <i class="stat-icon fas fa-stopwatch"></i>
+            <!-- Allow wrapping, center on medium+ -->
+            <!-- 失败次数筛选 -->
+            <div class="flex items-center gap-1">
+              <label
+                for="failCountThreshold"
+                class="text-sm select-none whitespace-nowrap font-semibold"
+                style="color: #1f2937 !important;"
+                >失败次数≥</label
+              >
+              <input
+                type="number"
+                id="failCountThreshold"
+                value="0"
+                min="0"
+                class="form-input h-7 w-16 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
+                onclick="event.stopPropagation();"
+              />
+            </div>
+            <!-- 密钥搜索 -->
+            <div class="flex items-center gap-1">
+              <label
+                for="keySearchInput"
+                class="text-sm select-none whitespace-nowrap font-semibold"
+                style="color: #1f2937 !important;"
+                ><i class="fas fa-search mr-1"></i>搜索</label
+              >
+              <input
+                type="search"
+                id="keySearchInput"
+                placeholder="输入密钥..."
+                class="form-input h-7 w-32 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
+                onclick="event.stopPropagation();"
+              />
+            </div>
+            <!-- 每页显示数量 -->
+            <div class="flex items-center gap-1">
+              <label
+                for="itemsPerPageSelect"
+                class="text-sm select-none whitespace-nowrap font-semibold"
+                style="color: #1f2937 !important;"
+                >每页</label
+              >
+              <select
+                id="itemsPerPageSelect"
+                class="form-select h-7 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
+                onclick="event.stopPropagation();"
+              >
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="500">500</option>
+              </select>
+              <span class="text-sm select-none font-semibold" style="color: #1f2937 !important;">项</span>
+            </div>
           </div>
+          <!-- Right side: Select All -->
           <div
-            class="stat-item stat-info cursor-pointer hover:bg-blue-100"
-            title="点击查看1小时内调用详情"
-            data-period="1h"
-            onclick="showApiCallDetails('1h', '{{ api_stats.calls_1h.total }}', '{{ api_stats.calls_1h.success }}', '{{ api_stats.calls_1h.failure }}')"
+            class="flex items-center gap-1 flex-shrink-0"
+            onclick="event.stopPropagation();"
           >
-            <div class="stat-value">{{ api_stats.calls_1h.total }}</div>
-            <div class="stat-label">1小时调用</div>
-            <i class="stat-icon fas fa-hourglass-half"></i>
+            <!-- Prevent shrinking -->
+            <input
+              type="checkbox"
+              id="selectAllValid"
+              class="form-checkbox h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              onchange="toggleSelectAll('valid', this.checked)"
+            />
+            <label
+              for="selectAllValid"
+              class="text-sm select-none whitespace-nowrap font-semibold"
+              style="color: #1f2937 !important;"
+              >全选</label
+            >
           </div>
+        </div>
+  
+        <!-- 批量操作按钮组 (仅在选中时显示) -->
+        <div
+          id="validBatchActions"
+          class="p-3 border-t hidden flex items-center flex-wrap gap-3"
+          style="
+            background-color: rgba(249, 250, 251, 0.95);
+            border-color: rgba(0, 0, 0, 0.08);
+          "
+        >
+          <!-- Added flex-wrap -->
+          <span class="text-sm font-semibold whitespace-nowrap" style="color: #1f2937 !important;"
+            >已选择 <span id="validSelectedCount">0</span> 项</span
+          >
+          <button
+            class="flex items-center gap-1 bg-success-600 hover:bg-success-700 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
+            onclick="event.stopPropagation(); showVerifyModal('valid', event)"
+            disabled
+          >
+            <i class="fas fa-check-double"></i> 批量验证
+          </button>
+          <button
+            class="flex items-center gap-1 bg-gray-500 hover:bg-gray-600 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
+            style="background-color: #6b7280 !important; color: #ffffff !important;"
+            onclick="event.stopPropagation(); resetAllKeysFailCount('valid', event)"
+            data-reset-type="valid"
+            disabled
+          >
+            <i class="fas fa-redo-alt"></i> 批量重置
+          </button>
+          <button
+            class="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
+            onclick="event.stopPropagation(); copySelectedKeys('valid')"
+            disabled
+          >
+            <i class="fas fa-copy"></i> 批量复制
+          </button>
+          <button
+            class="flex items-center gap-1 bg-red-800 hover:bg-red-900 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
+            onclick="event.stopPropagation(); showDeleteConfirmationModal('valid', event)"
+            disabled
+          >
+            <i class="fas fa-trash-alt"></i> 批量删除
+          </button>
+        </div>
+  
+        <div class="key-content p-4 bg-white bg-opacity-40">
+          <!-- Key list will be populated by JS -->
+          <ul id="validKeys" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {# This content is now loaded via JavaScript #} 
+            <li class="text-center text-gray-500 py-4 col-span-full">
+               <i class="fas fa-spinner fa-spin"></i> Loading keys...
+            </li>
+          </ul>
+          <!-- 有效密钥分页控件容器 -->
           <div
-            class="stat-item stat-primary cursor-pointer hover:bg-indigo-100"
-            title="点击查看24小时内调用详情"
-            data-period="24h"
-            onclick="showApiCallDetails('24h', '{{ api_stats.calls_24h.total }}', '{{ api_stats.calls_24h.success }}', '{{ api_stats.calls_24h.failure }}')"
+            id="validPaginationControls"
+            class="flex justify-center items-center mt-4 space-x-2"
           >
-            <div class="stat-value">{{ api_stats.calls_24h.total }}</div>
-            <div class="stat-label">24小时调用</div>
-            <i class="stat-icon fas fa-calendar-day"></i>
+            <!-- Pagination controls will be generated by JS -->
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- 有效密钥区域 -->
-    <div class="stats-card mb-6 animate-fade-in" style="animation-delay: 0.2s">
-      <div
-        class="stats-card-header cursor-pointer"
-        onclick="toggleSection(this, 'validKeys')"
-      >
-        <!-- Left side: Title and Toggle Icon -->
-        <div class="flex items-center gap-3 flex-shrink-0">
-          <!-- Prevent shrinking -->
-          <i class="fas fa-chevron-down toggle-icon text-primary-600"></i>
-          <i class="fas fa-check-circle text-success-500"></i>
-          <h2 class="text-lg font-semibold whitespace-nowrap">
-            有效密钥列表 ({{ valid_key_count }})
-          </h2>
-        </div>
-        <!-- Middle: Filters and Search (Allow wrapping) -->
+  
+      <!-- 无效密钥区域 -->
+      <div class="stats-card mb-6 animate-fade-in" style="animation-delay: 0.4s">
         <div
-          class="flex items-center gap-x-4 gap-y-2 flex-grow flex-wrap justify-start md:justify-center"
+          class="stats-card-header cursor-pointer"
+          onclick="toggleSection(this, 'invalidKeys')"
         >
-          <!-- Allow wrapping, center on medium+ -->
-          <!-- 失败次数筛选 -->
-          <div class="flex items-center gap-1">
-            <label
-              for="failCountThreshold"
-              class="text-sm select-none whitespace-nowrap font-semibold"
-              style="color: #1f2937 !important;"
-              >失败次数≥</label
-            >
-            <input
-              type="number"
-              id="failCountThreshold"
-              value="0"
-              min="0"
-              class="form-input h-7 w-16 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
-              onclick="event.stopPropagation();"
-            />
+          <!-- Left side: Title and Toggle Icon -->
+          <div class="flex items-center gap-3 flex-shrink-0">
+            <!-- Prevent shrinking -->
+            <i class="fas fa-chevron-down toggle-icon text-primary-600"></i>
+            <i class="fas fa-times-circle text-danger-500"></i>
+            <h2 class="text-lg font-semibold whitespace-nowrap">
+              无效密钥列表 ({{ invalid_key_count }})
+            </h2>
           </div>
-          <!-- 密钥搜索 -->
-          <div class="flex items-center gap-1">
-            <label
-              for="keySearchInput"
-              class="text-sm select-none whitespace-nowrap font-semibold"
-              style="color: #1f2937 !important;"
-              ><i class="fas fa-search mr-1"></i>搜索</label
-            >
-            <input
-              type="search"
-              id="keySearchInput"
-              placeholder="输入密钥..."
-              class="form-input h-7 w-32 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
-              onclick="event.stopPropagation();"
-            />
-          </div>
-          <!-- 每页显示数量 -->
-          <div class="flex items-center gap-1">
-            <label
-              for="itemsPerPageSelect"
-              class="text-sm select-none whitespace-nowrap font-semibold"
-              style="color: #1f2937 !important;"
-              >每页</label
-            >
-            <select
-              id="itemsPerPageSelect"
-              class="form-select h-7 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
-              onclick="event.stopPropagation();"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-            </select>
-            <span class="text-sm select-none font-semibold" style="color: #1f2937 !important;">项</span>
-          </div>
-        </div>
-        <!-- Right side: Select All -->
-        <div
-          class="flex items-center gap-1 flex-shrink-0"
-          onclick="event.stopPropagation();"
-        >
-          <!-- Prevent shrinking -->
-          <input
-            type="checkbox"
-            id="selectAllValid"
-            class="form-checkbox h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-            onchange="toggleSelectAll('valid', this.checked)"
-          />
-          <label
-            for="selectAllValid"
-            class="text-sm select-none whitespace-nowrap font-semibold"
-            style="color: #1f2937 !important;"
-            >全选</label
+          <!-- Middle: Filters and Search (Allow wrapping) -->
+          <div
+            class="flex items-center gap-x-4 gap-y-2 flex-grow flex-wrap justify-start md:justify-center"
           >
-        </div>
-      </div>
-
-      <!-- 批量操作按钮组 (仅在选中时显示) -->
-      <div
-        id="validBatchActions"
-        class="p-3 border-t hidden flex items-center flex-wrap gap-3"
-        style="
-          background-color: rgba(249, 250, 251, 0.95);
-          border-color: rgba(0, 0, 0, 0.08);
-        "
-      >
-        <!-- Added flex-wrap -->
-        <span class="text-sm font-semibold whitespace-nowrap" style="color: #1f2937 !important;"
-          >已选择 <span id="validSelectedCount">0</span> 项</span
-        >
-        <button
-          class="flex items-center gap-1 bg-success-600 hover:bg-success-700 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
-          onclick="event.stopPropagation(); showVerifyModal('valid', event)"
-          disabled
-        >
-          <i class="fas fa-check-double"></i> 批量验证
-        </button>
-        <button
-          class="flex items-center gap-1 bg-gray-500 hover:bg-gray-600 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
-          style="background-color: #6b7280 !important; color: #ffffff !important;"
-          onclick="event.stopPropagation(); resetAllKeysFailCount('valid', event)"
-          data-reset-type="valid"
-          disabled
-        >
-          <i class="fas fa-redo-alt"></i> 批量重置
-        </button>
-        <button
-          class="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
-          onclick="event.stopPropagation(); copySelectedKeys('valid')"
-          disabled
-        >
-          <i class="fas fa-copy"></i> 批量复制
-        </button>
-        <button
-          class="flex items-center gap-1 bg-red-800 hover:bg-red-900 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
-          onclick="event.stopPropagation(); showDeleteConfirmationModal('valid', event)"
-          disabled
-        >
-          <i class="fas fa-trash-alt"></i> 批量删除
-        </button>
-      </div>
-
-      <div class="key-content p-4 bg-white bg-opacity-40">
-        <!-- Key list will be populated by JS -->
-        <ul id="validKeys" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {# This content is now loaded via JavaScript #} 
-          <li class="text-center text-gray-500 py-4 col-span-full">
-             <i class="fas fa-spinner fa-spin"></i> Loading keys...
-          </li>
-        </ul>
-        <!-- 有效密钥分页控件容器 -->
-        <div
-          id="validPaginationControls"
-          class="flex justify-center items-center mt-4 space-x-2"
-        >
-          <!-- Pagination controls will be generated by JS -->
-        </div>
-      </div>
-    </div>
-
-    <!-- 无效密钥区域 -->
-    <div class="stats-card mb-6 animate-fade-in" style="animation-delay: 0.4s">
-      <div
-        class="stats-card-header cursor-pointer"
-        onclick="toggleSection(this, 'invalidKeys')"
-      >
-        <!-- Left side: Title and Toggle Icon -->
-        <div class="flex items-center gap-3 flex-shrink-0">
-          <!-- Prevent shrinking -->
-          <i class="fas fa-chevron-down toggle-icon text-primary-600"></i>
-          <i class="fas fa-times-circle text-danger-500"></i>
-          <h2 class="text-lg font-semibold whitespace-nowrap">
-            无效密钥列表 ({{ invalid_key_count }})
-          </h2>
-        </div>
-        <!-- Middle: Filters and Search (Allow wrapping) -->
-        <div
-          class="flex items-center gap-x-4 gap-y-2 flex-grow flex-wrap justify-start md:justify-center"
-        >
-          <!-- Allow wrapping, center on medium+ -->
-          <!-- 失败次数筛选 -->
-          <div class="flex items-center gap-1">
-            <label
-              for="invalidFailCountThreshold"
-              class="text-sm select-none whitespace-nowrap font-semibold"
-              style="color: #1f2937 !important;"
-              >失败次数≥</label
-            >
-            <input
-              type="number"
-              id="invalidFailCountThreshold"
-              value="0"
-              min="0"
-              class="form-input h-7 w-16 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
-              onclick="event.stopPropagation();"
-            />
+            <!-- Allow wrapping, center on medium+ -->
+            <!-- 失败次数筛选 -->
+            <div class="flex items-center gap-1">
+              <label
+                for="invalidFailCountThreshold"
+                class="text-sm select-none whitespace-nowrap font-semibold"
+                style="color: #1f2937 !important;"
+                >失败次数≥</label
+              >
+              <input
+                type="number"
+                id="invalidFailCountThreshold"
+                value="0"
+                min="0"
+                class="form-input h-7 w-16 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
+                onclick="event.stopPropagation();"
+              />
+            </div>
+            <!-- 密钥搜索 -->
+            <div class="flex items-center gap-1">
+              <label
+                for="invalidKeySearchInput"
+                class="text-sm select-none whitespace-nowrap font-semibold"
+                style="color: #1f2937 !important;"
+                ><i class="fas fa-search mr-1"></i>搜索</label
+              >
+              <input
+                type="search"
+                id="invalidKeySearchInput"
+                placeholder="输入密钥..."
+                class="form-input h-7 w-32 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
+                onclick="event.stopPropagation();"
+              />
+            </div>
+            <!-- 每页显示数量 -->
+            <div class="flex items-center gap-1">
+              <label
+                for="invalidItemsPerPageSelect"
+                class="text-sm select-none whitespace-nowrap font-semibold"
+                style="color: #1f2937 !important;"
+                >每页</label
+              >
+              <select
+                id="invalidItemsPerPageSelect"
+                class="form-select h-7 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
+                onclick="event.stopPropagation();"
+              >
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="500">500</option>
+              </select>
+              <span class="text-sm select-none font-semibold" style="color: #1f2937 !important;">项</span>
+            </div>
           </div>
-          <!-- 密钥搜索 -->
-          <div class="flex items-center gap-1">
-            <label
-              for="invalidKeySearchInput"
-              class="text-sm select-none whitespace-nowrap font-semibold"
-              style="color: #1f2937 !important;"
-              ><i class="fas fa-search mr-1"></i>搜索</label
-            >
-            <input
-              type="search"
-              id="invalidKeySearchInput"
-              placeholder="输入密钥..."
-              class="form-input h-7 w-32 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
-              onclick="event.stopPropagation();"
-            />
-          </div>
-          <!-- 每页显示数量 -->
-          <div class="flex items-center gap-1">
-            <label
-              for="invalidItemsPerPageSelect"
-              class="text-sm select-none whitespace-nowrap font-semibold"
-              style="color: #1f2937 !important;"
-              >每页</label
-            >
-            <select
-              id="invalidItemsPerPageSelect"
-              class="form-select h-7 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500"
-              onclick="event.stopPropagation();"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-            </select>
-            <span class="text-sm select-none font-semibold" style="color: #1f2937 !important;">项</span>
-          </div>
-        </div>
-        <!-- Right side: Select All -->
-        <div
-          class="flex items-center gap-1 flex-shrink-0"
-          onclick="event.stopPropagation();"
-        >
-          <!-- Prevent shrinking -->
-          <input
-            type="checkbox"
-            id="selectAllInvalid"
-            class="form-checkbox h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-            onchange="toggleSelectAll('invalid', this.checked)"
-          />
-          <label
-            for="selectAllInvalid"
-            class="text-sm select-none whitespace-nowrap font-semibold"
-            style="color: #1f2937 !important;"
-            >全选</label
+          <!-- Right side: Select All -->
+          <div
+            class="flex items-center gap-1 flex-shrink-0"
+            onclick="event.stopPropagation();"
           >
+            <!-- Prevent shrinking -->
+            <input
+              type="checkbox"
+              id="selectAllInvalid"
+              class="form-checkbox h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              onchange="toggleSelectAll('invalid', this.checked)"
+            />
+            <label
+              for="selectAllInvalid"
+              class="text-sm select-none whitespace-nowrap font-semibold"
+              style="color: #1f2937 !important;"
+              >全选</label
+            >
+          </div>
+        </div>
+  
+        <!-- 批量操作按钮组 (仅在选中时显示) -->
+        <div
+          id="invalidBatchActions"
+          class="p-3 border-t hidden flex items-center flex-wrap gap-3"
+          style="
+            background-color: rgba(249, 250, 251, 0.95);
+            border-color: rgba(0, 0, 0, 0.08);
+          "
+        >
+          <!-- Added flex-wrap -->
+          <span class="text-sm font-semibold whitespace-nowrap" style="color: #1f2937 !important;"
+            >已选择 <span id="invalidSelectedCount">0</span> 项</span
+          >
+          <button
+            class="flex items-center gap-1 bg-success-600 hover:bg-success-700 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
+            onclick="event.stopPropagation(); showVerifyModal('invalid', event)"
+            disabled
+          >
+            <i class="fas fa-check-double"></i> 批量验证
+          </button>
+          <button
+            class="flex items-center gap-1 bg-gray-500 hover:bg-gray-600 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
+            style="background-color: #6b7280 !important; color: #ffffff !important;"
+            onclick="event.stopPropagation(); resetAllKeysFailCount('invalid', event)"
+            data-reset-type="invalid"
+            disabled
+          >
+            <i class="fas fa-redo-alt"></i> 批量重置
+          </button>
+          <button
+            class="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
+            onclick="event.stopPropagation(); copySelectedKeys('invalid')"
+            disabled
+          >
+            <i class="fas fa-copy"></i> 批量复制
+          </button>
+          <button
+            class="flex items-center gap-1 bg-red-800 hover:bg-red-900 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
+            onclick="event.stopPropagation(); showDeleteConfirmationModal('invalid', event)"
+            disabled
+          >
+            <i class="fas fa-trash-alt"></i> 批量删除
+          </button>
+        </div>
+  
+        <div class="key-content p-4 bg-white bg-opacity-40">
+          <!-- Key list will be populated by JS -->
+          <ul id="invalidKeys" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {# This content is now loaded via JavaScript #} 
+            <li class="text-center text-gray-500 py-4 col-span-full">
+               <i class="fas fa-spinner fa-spin"></i> Loading keys...
+            </li>
+          </ul>
+          <!-- 无效密钥分页控件容器 -->
+          <div
+            id="invalidPaginationControls"
+            class="flex justify-center items-center mt-4 space-x-2"
+          >
+            <!-- Pagination controls will be generated by JS -->
+          </div>
         </div>
       </div>
-
-      <!-- 批量操作按钮组 (仅在选中时显示) -->
-      <div
-        id="invalidBatchActions"
-        class="p-3 border-t hidden flex items-center flex-wrap gap-3"
-        style="
-          background-color: rgba(249, 250, 251, 0.95);
-          border-color: rgba(0, 0, 0, 0.08);
-        "
-      >
-        <!-- Added flex-wrap -->
-        <span class="text-sm font-semibold whitespace-nowrap" style="color: #1f2937 !important;"
-          >已选择 <span id="invalidSelectedCount">0</span> 项</span
-        >
-        <button
-          class="flex items-center gap-1 bg-success-600 hover:bg-success-700 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
-          onclick="event.stopPropagation(); showVerifyModal('invalid', event)"
-          disabled
-        >
-          <i class="fas fa-check-double"></i> 批量验证
-        </button>
-        <button
-          class="flex items-center gap-1 bg-gray-500 hover:bg-gray-600 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
-          style="background-color: #6b7280 !important; color: #ffffff !important;"
-          onclick="event.stopPropagation(); resetAllKeysFailCount('invalid', event)"
-          data-reset-type="invalid"
-          disabled
-        >
-          <i class="fas fa-redo-alt"></i> 批量重置
-        </button>
-        <button
-          class="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
-          onclick="event.stopPropagation(); copySelectedKeys('invalid')"
-          disabled
-        >
-          <i class="fas fa-copy"></i> 批量复制
-        </button>
-        <button
-          class="flex items-center gap-1 bg-red-800 hover:bg-red-900 text-white px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed"
-          onclick="event.stopPropagation(); showDeleteConfirmationModal('invalid', event)"
-          disabled
-        >
-          <i class="fas fa-trash-alt"></i> 批量删除
-        </button>
-      </div>
-
-      <div class="key-content p-4 bg-white bg-opacity-40">
-        <!-- Key list will be populated by JS -->
-        <ul id="invalidKeys" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {# This content is now loaded via JavaScript #} 
-          <li class="text-center text-gray-500 py-4 col-span-full">
-             <i class="fas fa-spinner fa-spin"></i> Loading keys...
-          </li>
-        </ul>
-        <!-- 无效密钥分页控件容器 -->
-        <div
-          id="invalidPaginationControls"
-          class="flex justify-center items-center mt-4 space-x-2"
-        >
-          <!-- Pagination controls will be generated by JS -->
-        </div>
-      </div>
-    </div>
-
-    <!-- Removed old total keys display -->
-  </div>
-</div>
-
-<!-- Scroll buttons are now in base.html -->
-<div class="scroll-buttons">
-  <button class="scroll-button" onclick="scrollToTop()" title="回到顶部">
-    <i class="fas fa-chevron-up"></i>
-  </button>
-  <button class="scroll-button" onclick="scrollToBottom()" title="滚动到底部">
-    <i class="fas fa-chevron-down"></i>
-  </button>
-</div>
-
-<!-- Notification component is now in base.html (use id="notification") -->
-<div id="notification" class="notification"></div>
-<!-- 重置确认模态框 -->
-<div
-  id="resetModal"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
->
-  <div
-    class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full animate-fade-in"
-  >
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-semibold text-gray-800" id="resetModalTitle">
-        批量重置失败次数
-      </h3>
-      <button
-        onclick="closeResetModal()"
-        class="text-gray-500 hover:text-gray-700 focus:outline-none"
-      >
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    <div class="mb-6">
-      <p class="text-gray-600" id="resetModalMessage"></p>
-    </div>
-    <div class="flex justify-end gap-3">
-      <button
-        onclick="closeResetModal()"
-        class="px-3 py-1.5 text-xs font-medium bg-slate-500 hover:bg-slate-600 text-white rounded-lg transition-colors"
-        style="color: #ffffff !important;"
-      >
-        取消
-      </button>
-      <button
-        id="confirmResetBtn"
-        class="px-3 py-1.5 text-xs font-medium bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
-      >
-        确认
-      </button>
+  
+      <!-- Removed old total keys display -->
     </div>
   </div>
-</div>
-<!-- 验证确认模态框 -->
-<div
-  id="verifyModal"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
->
-  <div
-    class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full animate-fade-in"
-    style="
-      background-color: rgba(255, 255, 255, 0.98);
-      color: #374151;
-      border-color: rgba(0, 0, 0, 0.08);
-    "
-  >
-    <div class="flex items-center justify-between mb-4">
-      <h3
-        class="text-lg font-semibold"
-        id="verifyModalTitle"
-        style="
-          color: #1f2937;
-          font-weight: 600;
-        "
-      >
-        批量验证密钥
-      </h3>
-      <button
-        onclick="closeVerifyModal()"
-        class="text-gray-500 hover:text-gray-700 focus:outline-none"
-      >
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    <div class="mb-6">
-      <p style="color: #374151" id="verifyModalMessage" class="mb-4"></p>
-      <div class="flex items-center gap-2">
-        <label for="batchSize" class="text-sm font-medium" style="color: #374151;">每批次验证数量:</label>
-        <input type="number" id="batchSize" value="10" min="1" class="form-input h-8 w-20 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500">
-      </div>
-    </div>
-    <div class="flex justify-end gap-3">
-      <button
-        onclick="closeVerifyModal()"
-        class="px-3 py-1.5 text-xs font-medium bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
-        style="color: #ffffff !important;"
-      >
-        取消
-      </button>
-      <button
-        id="confirmVerifyBtn"
-        class="px-3 py-1.5 text-xs font-medium bg-success-600 hover:bg-success-700 text-white rounded-lg transition-colors"
-      >
-        确认验证
-      </button>
-    </div>
+  
+  <!-- Scroll buttons are now in base.html -->
+  <div class="scroll-buttons">
+    <button class="scroll-button" onclick="scrollToTop()" title="回到顶部">
+      <i class="fas fa-chevron-up"></i>
+    </button>
+    <button class="scroll-button" onclick="scrollToBottom()" title="滚动到底部">
+      <i class="fas fa-chevron-down"></i>
+    </button>
   </div>
-</div>
-
-<!-- 删除确认模态框 -->
-<div
-  id="deleteConfirmModal"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
->
+  
+  <!-- Notification component is now in base.html (use id="notification") -->
+  <div id="notification" class="notification"></div>
+  <!-- 重置确认模态框 -->
   <div
-    class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full animate-fade-in"
-    style="
-      background-color: rgba(255, 255, 255, 0.98);
-      color: #374151;
-      border-color: rgba(0, 0, 0, 0.08);
-    "
+    id="resetModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
   >
-    <div class="flex items-center justify-between mb-4">
-      <h3
-        class="text-lg font-semibold"
-        id="deleteConfirmModalTitle"
-        style="
-          color: #1f2937;
-          font-weight: 600;
-        "
-      >
-        确认删除
-      </h3>
-      <button
-        onclick="closeDeleteConfirmationModal()"
-        class="text-gray-500 hover:text-gray-700 focus:outline-none"
-      >
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    <div class="mb-6">
-      <p style="color: #374151" id="deleteConfirmModalMessage"></p>
-    </div>
-    <div class="flex justify-end gap-3">
-      <button
-        onclick="closeDeleteConfirmationModal()"
-        class="px-3 py-1.5 text-xs font-medium bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
-        style="color: #ffffff !important;"
-      >
-        取消
-      </button>
-      <button
-        id="confirmDeleteBtn"
-        class="px-3 py-1.5 text-xs font-medium bg-red-700 hover:bg-red-800 text-white rounded-lg transition-colors"
-      >
-        确认删除
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- 新增：单个密钥删除确认模态框 -->
-<div
-  id="singleKeyDeleteConfirmModal"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
->
-  <div
-    class="rounded-lg p-6 shadow-xl max-w-md w-full animate-fade-in"
-    style="
-      background-color: rgba(255, 255, 255, 0.98);
-      color: #374151;
-      border-color: rgba(0, 0, 0, 0.08);
-    "
-  >
-    <div class="flex items-center justify-between mb-4">
-      <h3
-        class="text-lg font-semibold"
-        id="singleKeyDeleteConfirmModalTitle"
-        style="
-          color: #1f2937;
-          font-weight: 600;
-        "
-      >
-        确认删除密钥
-      </h3>
-      <button
-        onclick="closeSingleKeyDeleteConfirmModal()"
-        class="text-gray-500 hover:text-gray-700 focus:outline-none"
-      >
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    <div class="mb-6">
-      <p style="color: #374151" id="singleKeyDeleteConfirmModalMessage"></p>
-    </div>
-    <div class="flex justify-end gap-3">
-      <button
-        onclick="closeSingleKeyDeleteConfirmModal()"
-        class="px-3 py-1.5 text-xs font-medium bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
-        style="color: #ffffff !important;"
-      >
-        取消
-      </button>
-      <button
-        id="confirmSingleKeyDeleteBtn"
-        class="px-3 py-1.5 text-xs font-medium bg-red-700 hover:bg-red-800 text-white rounded-lg transition-colors"
-      >
-        确认删除
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- 批量操作进度模态框 -->
-<div
-  id="progressModal"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
->
-  <div
-    class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full animate-fade-in"
-    style="
-      background-color: rgba(255, 255, 255, 0.98);
-      color: #374151;
-      border-color: rgba(0, 0, 0, 0.08);
-    "
-  >
-    <div class="flex items-center justify-between mb-4">
-      <h3
-        class="text-lg font-semibold text-gray-800"
-        id="progressModalTitle"
-        style="color: #1f2937; font-weight: 600"
-      >
-        批量操作进度
-      </h3>
-      <button
-        onclick="closeProgressModal()"
-        id="closeProgressModalBtn"
-        class="text-gray-500 hover:text-gray-700 focus:outline-none"
-        disabled
-      >
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    <div class="mb-4">
-      <p id="progressStatusText" class="text-sm text-gray-600 mb-2">
-        准备开始...
-      </p>
-      <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
-        <div
-          id="progressBar"
-          class="bg-primary-600 h-4 rounded-full transition-all duration-300"
-          style="width: 0%"
-        ></div>
-      </div>
-      <p
-        id="progressPercentage"
-        class="text-center text-sm font-semibold mt-1"
-        style="color: #1f2937"
-      >
-        0%
-      </p>
-    </div>
     <div
-      id="progressLog"
-      class="text-xs max-h-60 overflow-y-auto bg-gray-50 p-3 rounded border border-gray-200 space-y-1 font-mono"
+      class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full animate-fade-in"
+    >
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-800" id="resetModalTitle">
+          批量重置失败次数
+        </h3>
+        <button
+          onclick="closeResetModal()"
+          class="text-gray-500 hover:text-gray-700 focus:outline-none"
+        >
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="mb-6">
+        <p class="text-gray-600" id="resetModalMessage"></p>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button
+          onclick="closeResetModal()"
+          class="px-3 py-1.5 text-xs font-medium bg-slate-500 hover:bg-slate-600 text-white rounded-lg transition-colors"
+          style="color: #ffffff !important;"
+        >
+          取消
+        </button>
+        <button
+          id="confirmResetBtn"
+          class="px-3 py-1.5 text-xs font-medium bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+        >
+          确认
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- 验证确认模态框 -->
+  <div
+    id="verifyModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+  >
+    <div
+      class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full animate-fade-in"
       style="
-        background-color: rgba(249, 250, 251, 0.95);
+        background-color: rgba(255, 255, 255, 0.98);
+        color: #374151;
         border-color: rgba(0, 0, 0, 0.08);
       "
     >
-      <!-- Log entries will be added here -->
-    </div>
-    <div class="flex justify-end gap-3 mt-6">
-      <button
-        id="progressModalCloseBtn"
-        onclick="closeProgressModal(true)"
-        class="px-4 py-1.5 text-sm font-medium bg-primary-700 hover:bg-primary-800 text-white rounded-lg transition-colors"
-        disabled
-      >
-        完成并刷新
-      </button>
+      <div class="flex items-center justify-between mb-4">
+        <h3
+          class="text-lg font-semibold"
+          id="verifyModalTitle"
+          style="
+            color: #1f2937;
+            font-weight: 600;
+          "
+        >
+          批量验证密钥
+        </h3>
+        <button
+          onclick="closeVerifyModal()"
+          class="text-gray-500 hover:text-gray-700 focus:outline-none"
+        >
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="mb-6">
+        <p style="color: #374151" id="verifyModalMessage" class="mb-4"></p>
+        <div class="flex items-center gap-2">
+          <label for="batchSize" class="text-sm font-medium" style="color: #374151;">每批次验证数量:</label>
+          <input type="number" id="batchSize" value="10" min="1" class="form-input h-8 w-20 px-2 py-1 text-sm border rounded focus:ring-primary-500 focus:border-primary-500">
+        </div>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button
+          onclick="closeVerifyModal()"
+          class="px-3 py-1.5 text-xs font-medium bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
+          style="color: #ffffff !important;"
+        >
+          取消
+        </button>
+        <button
+          id="confirmVerifyBtn"
+          class="px-3 py-1.5 text-xs font-medium bg-success-600 hover:bg-success-700 text-white rounded-lg transition-colors"
+        >
+          确认验证
+        </button>
+      </div>
     </div>
   </div>
-</div>
-
-<!-- 操作结果模态框 -->
-<div
-  id="resultModal"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
->
+  
+  <!-- 删除确认模态框 -->
   <div
-    class="bg-white rounded-2xl p-0 shadow-2xl max-w-lg w-full animate-fade-in border border-gray-200"
+    id="deleteConfirmModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
   >
-    <div class="flex items-center justify-between px-6 pt-6 pb-2 border-b">
-      <h3
-        class="text-xl font-bold text-gray-800 text-center w-full"
-        id="resultModalTitle"
-        style="letter-spacing: 0.05em"
-      >
-        操作结果
-      </h3>
-      <button
-        onclick="closeResultModal()"
-        class="absolute right-6 top-6 text-gray-400 hover:text-gray-700 focus:outline-none text-2xl"
-      >
-        <i class="fas fa-times"></i>
-      </button>
+    <div
+      class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full animate-fade-in"
+      style="
+        background-color: rgba(255, 255, 255, 0.98);
+        color: #374151;
+        border-color: rgba(0, 0, 0, 0.08);
+      "
+    >
+      <div class="flex items-center justify-between mb-4">
+        <h3
+          class="text-lg font-semibold"
+          id="deleteConfirmModalTitle"
+          style="
+            color: #1f2937;
+            font-weight: 600;
+          "
+        >
+          确认删除
+        </h3>
+        <button
+          onclick="closeDeleteConfirmationModal()"
+          class="text-gray-500 hover:text-gray-700 focus:outline-none"
+        >
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="mb-6">
+        <p style="color: #374151" id="deleteConfirmModalMessage"></p>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button
+          onclick="closeDeleteConfirmationModal()"
+          class="px-3 py-1.5 text-xs font-medium bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
+          style="color: #ffffff !important;"
+        >
+          取消
+        </button>
+        <button
+          id="confirmDeleteBtn"
+          class="px-3 py-1.5 text-xs font-medium bg-red-700 hover:bg-red-800 text-white rounded-lg transition-colors"
+        >
+          确认删除
+        </button>
+      </div>
     </div>
-    <div class="flex flex-col items-center px-8 pt-6 pb-2">
-      <div id="resultIcon" class="text-6xl mb-3"></div>
+  </div>
+  
+  <!-- 新增：单个密钥删除确认模态框 -->
+  <div
+    id="singleKeyDeleteConfirmModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+  >
+    <div
+      class="rounded-lg p-6 shadow-xl max-w-md w-full animate-fade-in"
+      style="
+        background-color: rgba(255, 255, 255, 0.98);
+        color: #374151;
+        border-color: rgba(0, 0, 0, 0.08);
+      "
+    >
+      <div class="flex items-center justify-between mb-4">
+        <h3
+          class="text-lg font-semibold"
+          id="singleKeyDeleteConfirmModalTitle"
+          style="
+            color: #1f2937;
+            font-weight: 600;
+          "
+        >
+          确认删除密钥
+        </h3>
+        <button
+          onclick="closeSingleKeyDeleteConfirmModal()"
+          class="text-gray-500 hover:text-gray-700 focus:outline-none"
+        >
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="mb-6">
+        <p style="color: #374151" id="singleKeyDeleteConfirmModalMessage"></p>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button
+          onclick="closeSingleKeyDeleteConfirmModal()"
+          class="px-3 py-1.5 text-xs font-medium bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
+          style="color: #ffffff !important;"
+        >
+          取消
+        </button>
+        <button
+          id="confirmSingleKeyDeleteBtn"
+          class="px-3 py-1.5 text-xs font-medium bg-red-700 hover:bg-red-800 text-white rounded-lg transition-colors"
+        >
+          确认删除
+        </button>
+      </div>
     </div>
-    <div class="px-8 pb-2 w-full">
+  </div>
+  
+  <!-- 批量操作进度模态框 -->
+  <div
+    id="progressModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+  >
+    <div
+      class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full animate-fade-in"
+      style="
+        background-color: rgba(255, 255, 255, 0.98);
+        color: #374151;
+        border-color: rgba(0, 0, 0, 0.08);
+      "
+    >
+      <div class="flex items-center justify-between mb-4">
+        <h3
+          class="text-lg font-semibold text-gray-800"
+          id="progressModalTitle"
+          style="color: #1f2937; font-weight: 600"
+        >
+          批量操作进度
+        </h3>
+        <button
+          onclick="closeProgressModal()"
+          id="closeProgressModalBtn"
+          class="text-gray-500 hover:text-gray-700 focus:outline-none"
+          disabled
+        >
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="mb-4">
+        <p id="progressStatusText" class="text-sm text-gray-600 mb-2">
+          准备开始...
+        </p>
+        <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
+          <div
+            id="progressBar"
+            class="bg-primary-600 h-4 rounded-full transition-all duration-300"
+            style="width: 0%"
+          ></div>
+        </div>
+        <p
+          id="progressPercentage"
+          class="text-center text-sm font-semibold mt-1"
+          style="color: #1f2937"
+        >
+          0%
+        </p>
+      </div>
       <div
-        id="resultModalMessage"
-        class="text-gray-700 text-base leading-relaxed break-words whitespace-pre-line max-h-80 overflow-y-auto border border-gray-100 rounded-lg bg-gray-50 p-4 shadow-inner"
+        id="progressLog"
+        class="text-xs max-h-60 overflow-y-auto bg-gray-50 p-3 rounded border border-gray-200 space-y-1 font-mono"
         style="
-          font-family: 'JetBrains Mono', 'Fira Mono', 'Consolas', 'monospace';
+          background-color: rgba(249, 250, 251, 0.95);
+          border-color: rgba(0, 0, 0, 0.08);
         "
       >
-        <!-- Content is dynamically generated by JS -->
+        <!-- Log entries will be added here -->
+      </div>
+      <div class="flex justify-end gap-3 mt-6">
+        <button
+          id="progressModalCloseBtn"
+          onclick="closeProgressModal(true)"
+          class="px-4 py-1.5 text-sm font-medium bg-primary-700 hover:bg-primary-800 text-white rounded-lg transition-colors"
+          disabled
+        >
+          完成并刷新
+        </button>
       </div>
     </div>
-    <div class="flex justify-center px-8 pb-6 pt-2">
-      <button
-        id="resultModalConfirmBtn"
-        onclick="closeResultModal()"
-        class="px-5 py-1.5 text-sm font-semibold bg-primary-700 hover:bg-primary-800 text-white rounded-lg shadow transition-colors"
-      >
-        确定
-      </button>
-    </div>
   </div>
-</div>
-
-<!-- API 调用详情模态框 -->
-<div
-  id="apiCallDetailsModal"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
->
+  
+  <!-- 操作结果模态框 -->
   <div
-    class="bg-white rounded-lg p-6 shadow-xl max-w-3xl w-full animate-fade-in"
+    id="resultModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
   >
-    <!-- Increased max-width -->
-    <div class="flex items-center justify-between mb-4 border-b pb-3">
-      <h3
-        class="text-xl font-semibold text-gray-800"
-        id="apiCallDetailsModalTitle"
-      >
-        API 调用详情
-      </h3>
-      <button
-        onclick="closeApiCallDetailsModal()"
-        class="text-gray-500 hover:text-gray-700 focus:outline-none text-xl"
-      >
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
     <div
-      id="apiCallDetailsContent"
-      class="mb-6 max-h-[60vh] overflow-y-auto pr-2"
+      class="bg-white rounded-2xl p-0 shadow-2xl max-w-lg w-full animate-fade-in border border-gray-200"
     >
-      <!-- Increased max-height and added padding-right -->
-      <!-- 详细数据将加载到这里 -->
-      <div class="text-center py-10">
-        <i class="fas fa-spinner fa-spin text-primary-600 text-3xl"></i>
-        <p class="text-gray-500 mt-2">加载中...</p>
+      <div class="flex items-center justify-between px-6 pt-6 pb-2 border-b">
+        <h3
+          class="text-xl font-bold text-gray-800 text-center w-full"
+          id="resultModalTitle"
+          style="letter-spacing: 0.05em"
+        >
+          操作结果
+        </h3>
+        <button
+          onclick="closeResultModal()"
+          class="absolute right-6 top-6 text-gray-400 hover:text-gray-700 focus:outline-none text-2xl"
+        >
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="flex flex-col items-center px-8 pt-6 pb-2">
+        <div id="resultIcon" class="text-6xl mb-3"></div>
+      </div>
+      <div class="px-8 pb-2 w-full">
+        <div
+          id="resultModalMessage"
+          class="text-gray-700 text-base leading-relaxed break-words whitespace-pre-line max-h-80 overflow-y-auto border border-gray-100 rounded-lg bg-gray-50 p-4 shadow-inner"
+          style="
+            font-family: 'JetBrains Mono', 'Fira Mono', 'Consolas', 'monospace';
+          "
+        >
+          <!-- Content is dynamically generated by JS -->
+        </div>
+      </div>
+      <div class="flex justify-center px-8 pb-6 pt-2">
+        <button
+          id="resultModalConfirmBtn"
+          onclick="closeResultModal()"
+          class="px-5 py-1.5 text-sm font-semibold bg-primary-700 hover:bg-primary-800 text-white rounded-lg shadow transition-colors"
+        >
+          确定
+        </button>
       </div>
     </div>
-    <div class="flex justify-end pt-4 border-t">
-      <button
-        onclick="closeApiCallDetailsModal()"
-        class="px-4 py-1.5 text-xs font-medium bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors"
-      >
-        关闭
-      </button>
-    </div>
   </div>
-</div>
-
-<!-- 密钥使用详情模态框 -->
-<div
-  id="keyUsageDetailsModal"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
->
+  
+  <!-- API 调用详情模态框 -->
   <div
-    class="bg-white rounded-lg p-6 shadow-xl max-w-lg w-full animate-fade-in"
+    id="apiCallDetailsModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
   >
-    <!-- Adjusted max-width -->
-    <div class="flex items-center justify-between mb-4 border-b pb-3">
-      <h3
-        class="text-xl font-semibold text-gray-800"
-        id="keyUsageDetailsModalTitle"
-      >
-        密钥请求详情
-      </h3>
-      <button
-        onclick="closeKeyUsageDetailsModal()"
-        class="text-gray-500 hover:text-gray-700 focus:outline-none text-xl"
-      >
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
     <div
-      id="keyUsageDetailsContent"
-      class="mb-6 max-h-[50vh] overflow-y-auto pr-2"
+      class="bg-white rounded-lg p-6 shadow-xl max-w-3xl w-full animate-fade-in"
     >
-      <!-- Adjusted max-height -->
-      <!-- 详细数据将加载到这里 -->
-      <div class="text-center py-10">
-        <i class="fas fa-spinner fa-spin text-primary-600 text-3xl"></i>
-        <p class="text-gray-500 mt-2">加载中...</p>
+      <!-- Increased max-width -->
+      <div class="flex items-center justify-between mb-4 border-b pb-3">
+        <h3
+          class="text-xl font-semibold text-gray-800"
+          id="apiCallDetailsModalTitle"
+        >
+          API 调用详情
+        </h3>
+        <button
+          onclick="closeApiCallDetailsModal()"
+          class="text-gray-500 hover:text-gray-700 focus:outline-none text-xl"
+        >
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div
+        id="apiCallDetailsContent"
+        class="mb-6 max-h-[60vh] overflow-y-auto pr-2"
+      >
+        <!-- Increased max-height and added padding-right -->
+        <!-- 详细数据将加载到这里 -->
+        <div class="text-center py-10">
+          <i class="fas fa-spinner fa-spin text-primary-600 text-3xl"></i>
+          <p class="text-gray-500 mt-2">加载中...</p>
+        </div>
+      </div>
+      <div class="flex justify-end pt-4 border-t">
+        <button
+          onclick="closeApiCallDetailsModal()"
+          class="px-4 py-1.5 text-xs font-medium bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors"
+        >
+          关闭
+        </button>
       </div>
     </div>
-    <div class="flex justify-end pt-4 border-t">
-      <button
-        onclick="closeKeyUsageDetailsModal()"
-        class="px-4 py-1.5 text-xs font-medium bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors"
+  </div>
+  
+  <!-- 密钥使用详情模态框 -->
+  <div
+    id="keyUsageDetailsModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+  >
+    <div
+      class="bg-white rounded-lg p-6 shadow-xl max-w-lg w-full animate-fade-in"
+    >
+      <!-- Adjusted max-width -->
+      <div class="flex items-center justify-between mb-4 border-b pb-3">
+        <h3
+          class="text-xl font-semibold text-gray-800"
+          id="keyUsageDetailsModalTitle"
+        >
+          密钥请求详情
+        </h3>
+        <button
+          onclick="closeKeyUsageDetailsModal()"
+          class="text-gray-500 hover:text-gray-700 focus:outline-none text-xl"
+        >
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div
+        id="keyUsageDetailsContent"
+        class="mb-6 max-h-[50vh] overflow-y-auto pr-2"
       >
-        关闭
-      </button>
+        <!-- Adjusted max-height -->
+        <!-- 详细数据将加载到这里 -->
+        <div class="text-center py-10">
+          <i class="fas fa-spinner fa-spin text-primary-600 text-3xl"></i>
+          <p class="text-gray-500 mt-2">加载中...</p>
+        </div>
+      </div>
+      <div class="flex justify-end pt-4 border-t">
+        <button
+          onclick="closeKeyUsageDetailsModal()"
+          class="px-4 py-1.5 text-xs font-medium bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors"
+        >
+          关闭
+        </button>
+      </div>
     </div>
   </div>
-</div>
-
-<!-- Footer is now in base.html -->
-
-{% endblock %} {% block body_scripts %}
-<script>
-  // keys_status.html specific JavaScript initialization is now handled by keys_status.js
-  // The DOMContentLoaded listener in keys_status.js will execute after the DOM is ready.
-  // No inline script needed here anymore.
-</script>
-{% endblock %}
+  
+  <!-- Footer is now in base.html -->
+  
+  {% endblock %} {% block body_scripts %}
+  <script>
+    function copyToClipboard(elementId) {
+      const inputElement = document.getElementById(elementId);
+      inputElement.select();
+      document.execCommand("copy");
+      showNotification(inputElement.previousElementSibling.textContent + " copied to clipboard!", "success");
+    }
+  
+    document.addEventListener("DOMContentLoaded", function () {
+      const host = `${window.location.protocol}//${window.location.host}`;
+      document.getElementById("claudeCodeBaseURL").value = `${host}/v1beta/models`;
+      document.getElementById("openaiBaseURL").value = `${host}/openai/v1`;
+      document.getElementById("hfBaseURL").value = `${host}/hf/v1`;
+    });
+  </script>
+  <script>
+    // keys_status.html specific JavaScript initialization is now handled by keys_status.js
+    // The DOMContentLoaded listener in keys_status.js will execute after the DOM is ready.
+    // No inline script needed here anymore.
+  </script>
+  {% endblock %}
+  
