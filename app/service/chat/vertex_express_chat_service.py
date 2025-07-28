@@ -190,6 +190,23 @@ def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
             else:
                 payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": settings.THINKING_BUDGET_MAP.get(model,1000)}
 
+    # 解决 "Tool use with a response mime type: 'application/json' is unsupported" 问题
+    # 检查是否存在非空tools字段或内容中包含函数调用
+    # 注意：只有当tools数组包含实际工具定义时，Gemini API才不支持同时使用tools和responseMimeType
+    tools = payload.get("tools", [])
+    has_tools_field = tools is not None and len(tools) > 0
+    has_function_call = any(
+        part.get("functionCall")
+        for content in payload.get("contents", [])
+        for part in content.get("parts", [])
+        if isinstance(part, dict)
+    )
+    
+    if (has_tools_field or has_function_call) and payload.get("generationConfig"):
+        if "responseMimeType" in payload["generationConfig"]:
+            payload["generationConfig"].pop("responseMimeType", None)
+            logger.info("Removed responseMimeType due to tool usage conflict")
+
     return payload
 
 

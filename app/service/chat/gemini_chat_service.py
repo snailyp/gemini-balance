@@ -212,13 +212,30 @@ def _build_payload(model: str, request: GeminiRequest) -> Dict[str, Any]:
             payload["systemInstruction"] = request_dict.get("systemInstruction")
     else:
         # 非TTS模型使用完整的payload
+        tools = _build_tools(model, request_dict)
         payload = {
             "contents": _filter_empty_parts(request_dict.get("contents", [])),
-            "tools": _build_tools(model, request_dict),
+            "tools": tools,
             "safetySettings": _get_safety_settings(model),
             "generationConfig": request_dict.get("generationConfig"),
             "systemInstruction": request_dict.get("systemInstruction"),
         }
+        
+        # 解决 "Tool use with a response mime type: 'application/json' is unsupported" 问题
+        # 如果存在非空tools字段或内容中包含函数调用，则移除 responseMimeType
+        # 注意：只有当tools数组包含实际工具定义时，Gemini API才不支持同时使用tools和responseMimeType
+        has_tools_field = tools is not None and len(tools) > 0
+        has_function_call = any(
+            part.get("functionCall")
+            for content in payload.get("contents", [])
+            for part in content.get("parts", [])
+            if isinstance(part, dict)
+        )
+        
+        if (has_tools_field or has_function_call) and payload.get("generationConfig"):
+            if "responseMimeType" in payload["generationConfig"]:
+                payload["generationConfig"].pop("responseMimeType", None)
+                logger.info("Removed responseMimeType due to tool usage conflict")
 
     # 确保 generationConfig 不为 None
     if payload["generationConfig"] is None:
