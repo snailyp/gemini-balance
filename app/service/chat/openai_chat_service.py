@@ -225,6 +225,23 @@ def _build_payload(
     ):
         payload["systemInstruction"] = instruction
 
+    # 解决 "Tool use with a response mime type: 'application/json' is unsupported" 问题
+    # 检查是否存在tools字段或内容中包含函数调用
+    # 注意：即使tools为空数组，Gemini API也不支持同时使用tools和responseMimeType
+    tools = payload.get("tools", [])
+    has_tools_field = tools is not None
+    has_function_call = any(
+        message.get("tool_calls") or  # OpenAI format
+        any(part.get("functionCall") for part in message.get("parts", []) if isinstance(part, dict))  # Gemini format
+        for message in messages
+        if isinstance(message, dict)
+    )
+    
+    if (has_tools_field or has_function_call) and payload.get("generationConfig"):
+        if "responseMimeType" in payload["generationConfig"]:
+            payload["generationConfig"].pop("responseMimeType", None)
+            logger.info("Removed responseMimeType due to tool usage conflict")
+
     return payload
 
 
