@@ -5,8 +5,9 @@ import asyncio
 from app.config.config import settings
 from app.log.logger import get_gemini_logger
 from app.core.security import SecurityService
-from app.domain.gemini_models import GeminiContent, GeminiRequest, ResetSelectedKeysRequest, VerifySelectedKeysRequest
+from app.domain.gemini_models import GeminiContent, GeminiRequest, ResetSelectedKeysRequest, VerifySelectedKeysRequest, GeminiEmbedRequest, GeminiBatchEmbedRequest
 from app.service.chat.gemini_chat_service import GeminiChatService
+from app.service.embedding.gemini_embedding_service import GeminiEmbeddingService
 from app.service.key.key_manager import KeyManager, get_key_manager_instance
 from app.service.tts.native.tts_routes import get_tts_chat_service
 from app.service.model.model_service import ModelService
@@ -36,6 +37,11 @@ async def get_next_working_key(key_manager: KeyManager = Depends(get_key_manager
 async def get_chat_service(key_manager: KeyManager = Depends(get_key_manager)):
     """获取Gemini聊天服务实例"""
     return GeminiChatService(settings.BASE_URL, key_manager)
+
+
+async def get_embedding_service(key_manager: KeyManager = Depends(get_key_manager)):
+    """获取Gemini嵌入服务实例"""
+    return GeminiEmbeddingService(settings.BASE_URL, key_manager)
 
 
 @router.get("/models")
@@ -205,6 +211,63 @@ async def count_tokens(
             raise HTTPException(status_code=400, detail=f"Model {model_name} is not supported")
 
         response = await chat_service.count_tokens(
+            model=model_name,
+            request=request,
+            api_key=api_key
+        )
+        return response
+    
+@router.post("/models/{model_name}:embedContent")
+@router_v1beta.post("/models/{model_name}:embedContent")
+@RetryHandler(key_arg="api_key")
+async def embed_content(
+    model_name: str,
+    request: GeminiEmbedRequest,
+    _=Depends(security_service.verify_key_or_goog_api_key),
+    api_key: str = Depends(get_next_working_key),
+    key_manager: KeyManager = Depends(get_key_manager),
+    embedding_service: GeminiEmbeddingService = Depends(get_embedding_service)
+):
+    """处理 Gemini 单一嵌入请求"""
+    operation_name = "gemini_embed_content"
+    async with handle_route_errors(logger, operation_name, failure_message="Embedding content generation failed"):
+        logger.info(f"Handling Gemini embedding request for model: {model_name}")
+        logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
+        logger.info(f"Using API key: {redact_key_for_logging(api_key)}")
+
+        if not await model_service.check_model_support(model_name):
+            raise HTTPException(status_code=400, detail=f"Model {model_name} is not supported")
+
+        response = await embedding_service.embed_content(
+            model=model_name,
+            request=request,
+            api_key=api_key
+        )
+        return response
+
+
+@router.post("/models/{model_name}:batchEmbedContents")
+@router_v1beta.post("/models/{model_name}:batchEmbedContents")
+@RetryHandler(key_arg="api_key")
+async def batch_embed_contents(
+    model_name: str,
+    request: GeminiBatchEmbedRequest,
+    _=Depends(security_service.verify_key_or_goog_api_key),
+    api_key: str = Depends(get_next_working_key),
+    key_manager: KeyManager = Depends(get_key_manager),
+    embedding_service: GeminiEmbeddingService = Depends(get_embedding_service)
+):
+    """处理 Gemini 批量嵌入请求"""
+    operation_name = "gemini_batch_embed_contents"
+    async with handle_route_errors(logger, operation_name, failure_message="Batch embedding content generation failed"):
+        logger.info(f"Handling Gemini batch embedding request for model: {model_name}")
+        logger.debug(f"Request: \n{request.model_dump_json(indent=2)}")
+        logger.info(f"Using API key: {redact_key_for_logging(api_key)}")
+
+        if not await model_service.check_model_support(model_name):
+            raise HTTPException(status_code=400, detail=f"Model {model_name} is not supported")
+
+        response = await embedding_service.batch_embed_contents(
             model=model_name,
             request=request,
             api_key=api_key

@@ -80,3 +80,36 @@ class ResetSelectedKeysRequest(BaseModel):
 
 class VerifySelectedKeysRequest(BaseModel):
     keys: List[str]
+
+
+class GeminiEmbedContent(BaseModel):
+    """嵌入内容模型"""
+
+    parts: List[Dict[str, str]]
+
+
+class GeminiEmbedRequest(BaseModel):
+    """单一嵌入请求模型"""
+
+    content: GeminiEmbedContent
+    taskType: Optional[
+        Literal[
+            "TASK_TYPE_UNSPECIFIED",
+            "RETRIEVAL_QUERY",
+            "RETRIEVAL_DOCUMENT",
+            "SEMANTIC_SIMILARITY",
+            "CLASSIFICATION",
+            "CLUSTERING",
+            "QUESTION_ANSWERING",
+            "FACT_VERIFICATION",
+            "CODE_RETRIEVAL_QUERY",
+        ]
+    ] = None
+    title: Optional[str] = None
+    outputDimensionality: Optional[int] = None
+
+
+class GeminiBatchEmbedRequest(BaseModel):
+    """批量嵌入请求模型"""
+
+    requests: List[GeminiEmbedRequest]

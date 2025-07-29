@@ -161,6 +161,80 @@ class GeminiApiClient(ApiClient):
                 raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
             return response.json()
 
+    async def embed_content(self, payload: Dict[str, Any], model: str, api_key: str) -> Dict[str, Any]:
+        """单一嵌入内容生成"""
+        timeout = httpx.Timeout(self.timeout, read=self.timeout)
+        model = self._get_real_model(model)
+        
+        proxy_to_use = None
+        if settings.PROXIES:
+            if settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY:
+                proxy_to_use = settings.PROXIES[hash(api_key) % len(settings.PROXIES)]
+            else:
+                proxy_to_use = random.choice(settings.PROXIES)
+            logger.info(f"Using proxy for embedding: {proxy_to_use}")
+
+        headers = self._prepare_headers()
+        async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
+            url = f"{self.base_url}/models/{model}:embedContent?key={api_key}"
+            
+            try:
+                response = await client.post(url, json=payload, headers=headers)
+                
+                if response.status_code != 200:
+                    error_content = response.text
+                    logger.error(f"Embedding API call failed - Status: {response.status_code}, Content: {error_content}")
+                    raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
+                
+                return response.json()
+                
+            except httpx.TimeoutException as e:
+                logger.error(f"Embedding request timeout: {e}")
+                raise Exception(f"Request timeout: {e}")
+            except httpx.RequestError as e:
+                logger.error(f"Embedding request error: {e}")
+                raise Exception(f"Request error: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected embedding error: {e}")
+                raise
+
+    async def batch_embed_contents(self, payload: Dict[str, Any], model: str, api_key: str) -> Dict[str, Any]:
+        """批量嵌入内容生成"""
+        timeout = httpx.Timeout(self.timeout, read=self.timeout)
+        model = self._get_real_model(model)
+        
+        proxy_to_use = None
+        if settings.PROXIES:
+            if settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY:
+                proxy_to_use = settings.PROXIES[hash(api_key) % len(settings.PROXIES)]
+            else:
+                proxy_to_use = random.choice(settings.PROXIES)
+            logger.info(f"Using proxy for batch embedding: {proxy_to_use}")
+
+        headers = self._prepare_headers()
+        async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
+            url = f"{self.base_url}/models/{model}:batchEmbedContents?key={api_key}"
+            
+            try:
+                response = await client.post(url, json=payload, headers=headers)
+                
+                if response.status_code != 200:
+                    error_content = response.text
+                    logger.error(f"Batch embedding API call failed - Status: {response.status_code}, Content: {error_content}")
+                    raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
+                
+                return response.json()
+                
+            except httpx.TimeoutException as e:
+                logger.error(f"Batch embedding request timeout: {e}")
+                raise Exception(f"Request timeout: {e}")
+            except httpx.RequestError as e:
+                logger.error(f"Batch embedding request error: {e}")
+                raise Exception(f"Request error: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected batch embedding error: {e}")
+                raise
+
 
 class OpenaiApiClient(ApiClient):
     """OpenAI API客户端"""
