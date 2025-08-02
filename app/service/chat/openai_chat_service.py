@@ -46,7 +46,7 @@ def _clean_json_schema_properties(obj: Any) -> Any:
         "exclusiveMaximum", "exclusiveMinimum", "const", "examples", 
         "contentEncoding", "contentMediaType", "if", "then", "else",
         "allOf", "anyOf", "oneOf", "not", "definitions", "$schema",
-        "$id", "$ref", "$comment", "readOnly", "writeOnly"
+        "$id", "$ref", "$comment", "readOnly", "writeOnly", "additionalProperties"
     }
     
     cleaned = {}
