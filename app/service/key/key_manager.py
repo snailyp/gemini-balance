@@ -39,6 +39,12 @@ class KeyManager:
         self.MAX_FAILURES = settings.MAX_FAILURES
         self.paid_key = settings.PAID_KEY
         
+        # Key复活检测相关数据结构
+        self.key_invalidation_times: Dict[str, float] = {}  # key失效时间戳
+        self.vertex_key_invalidation_times: Dict[str, float] = {}  # vertex key失效时间戳
+        self.resurrection_lock = asyncio.Lock()
+        self.last_resurrection_check = 0.0  # 上次复活检测时间
+        
         # 初始化贝叶斯统计
         self._init_bayesian_stats()
 
@@ -178,6 +184,10 @@ class KeyManager:
                 logger.warning(
                     f"API key {redact_key_for_logging(api_key)} has failed {self.MAX_FAILURES} times"
                 )
+                # 记录key失效时间，用于复活检测
+                async with self.resurrection_lock:
+                    self.key_invalidation_times[api_key] = time.time()
+                    logger.debug(f"Recorded invalidation time for key {redact_key_for_logging(api_key)}")
         
         # 更新贝叶斯统计 (失败: beta += 1)
         await self.update_key_failure(api_key)
@@ -196,6 +206,10 @@ class KeyManager:
                 logger.warning(
                     f"Vertex Express API key {redact_key_for_logging(api_key)} has failed {self.MAX_FAILURES} times"
                 )
+                # 记录vertex key失效时间，用于复活检测
+                async with self.resurrection_lock:
+                    self.vertex_key_invalidation_times[api_key] = time.time()
+                    logger.debug(f"Recorded invalidation time for Vertex key {redact_key_for_logging(api_key)}")
         
         # 更新贝叶斯统计 (失败: beta += 1)
         await self.update_vertex_key_failure(api_key)
@@ -472,6 +486,124 @@ class KeyManager:
                                        f"original={actual_failures} -> bayesian={expected_failures}")
                             # 以贝叶斯统计为准，更新原有计数
                             self.vertex_key_failure_counts[key] = max(0, expected_failures)
+    
+    async def check_key_resurrection(self):
+        """检查并尝试复活失效的keys"""
+        if not settings.KEY_RESURRECTION_ENABLED:
+            return
+        
+        current_time = time.time()
+        
+        # 检查是否到了复活检测时间
+        if current_time - self.last_resurrection_check < settings.KEY_RESURRECTION_INTERVAL:
+            return
+        
+        self.last_resurrection_check = current_time
+        logger.debug("Starting key resurrection check")
+        
+        # 检查普通API keys
+        await self._check_invalid_keys_resurrection(is_vertex=False)
+        
+        # 检查Vertex API keys  
+        await self._check_invalid_keys_resurrection(is_vertex=True)
+        
+        logger.debug("Completed key resurrection check")
+    
+    async def _check_invalid_keys_resurrection(self, is_vertex: bool = False):
+        """检查特定类型的无效keys是否可以复活"""
+        current_time = time.time()
+        keys_to_test = []
+        
+        async with self.resurrection_lock:
+            if is_vertex:
+                invalidation_times = self.vertex_key_invalidation_times
+                failure_counts = self.vertex_key_failure_counts
+                lock = self.vertex_failure_count_lock
+            else:
+                invalidation_times = self.key_invalidation_times
+                failure_counts = self.key_failure_counts
+                lock = self.failure_count_lock
+            
+            # 找出已过冷却期的失效keys
+            for key, invalidation_time in invalidation_times.items():
+                if current_time - invalidation_time >= settings.KEY_RESURRECTION_COOLDOWN:
+                    async with lock:
+                        if failure_counts.get(key, 0) >= self.MAX_FAILURES:
+                            keys_to_test.append(key)
+        
+        # 测试每个候选key
+        for key in keys_to_test:
+            success = await self._test_key_validity(key, is_vertex)
+            if success:
+                await self._resurrect_key(key, is_vertex)
+    
+    async def _test_key_validity(self, api_key: str, is_vertex: bool = False) -> bool:
+        """轻量级测试key是否已恢复有效性"""
+        try:
+            if is_vertex:
+                # 为Vertex key创建简单的测试请求
+                test_client = None  # 这里需要根据实际的Vertex API客户端实现
+                logger.debug(f"Testing Vertex key validity: {redact_key_for_logging(api_key)}")
+                # 简化实现：假设Vertex key测试
+                return False  # 暂时返回False，需要实际的Vertex API测试逻辑
+            else:
+                # 为普通API key创建简单的测试请求
+                from app.service.client.api_client import GeminiApiClient
+                test_client = GeminiApiClient(settings.BASE_URL, 10)  # 10秒超时
+                
+                # 创建轻量级测试请求
+                test_payload = {
+                    "contents": [{"parts": [{"text": "test"}]}],
+                    "generationConfig": {"maxOutputTokens": 1}
+                }
+                
+                logger.debug(f"Testing key validity: {redact_key_for_logging(api_key)}")
+                await test_client.generate_content(test_payload, settings.KEY_RESURRECTION_TEST_MODEL, api_key)
+                return True
+                
+        except Exception as e:
+            logger.debug(f"Key {redact_key_for_logging(api_key)} still invalid: {str(e)}")
+            return False
+    
+    async def _resurrect_key(self, api_key: str, is_vertex: bool = False):
+        """复活一个key，重置其统计数据"""
+        try:
+            if is_vertex:
+                async with self.vertex_failure_count_lock:
+                    self.vertex_key_failure_counts[api_key] = 0
+                
+                async with self.vertex_bayesian_stats_lock:
+                    if api_key in self.vertex_key_stats:
+                        alpha, _ = self.vertex_key_stats[api_key]
+                        # 重置beta为先验值，保留成功经验(alpha)
+                        self.vertex_key_stats[api_key] = (alpha, settings.BAYESIAN_BETA_PRIOR)
+                
+                async with self.resurrection_lock:
+                    if api_key in self.vertex_key_invalidation_times:
+                        del self.vertex_key_invalidation_times[api_key]
+                
+                logger.info(f"Resurrected Vertex key: {redact_key_for_logging(api_key)}")
+            else:
+                async with self.failure_count_lock:
+                    self.key_failure_counts[api_key] = 0
+                
+                async with self.bayesian_stats_lock:
+                    if api_key in self.key_stats:
+                        alpha, _ = self.key_stats[api_key]
+                        # 重置beta为先验值，保留成功经验(alpha)
+                        self.key_stats[api_key] = (alpha, settings.BAYESIAN_BETA_PRIOR)
+                
+                async with self.resurrection_lock:
+                    if api_key in self.key_invalidation_times:
+                        del self.key_invalidation_times[api_key]
+                
+                logger.info(f"Resurrected key: {redact_key_for_logging(api_key)}")
+            
+            # 触发统计保存
+            await _auto_save_bayesian_stats(self)
+            
+        except Exception as e:
+            logger.error(f"Error resurrecting key {redact_key_for_logging(api_key)}: {e}")
 
 
 _singleton_instance = None
@@ -699,6 +831,9 @@ async def get_key_manager_instance(
 
         # 定期保存贝叶斯统计
         await _auto_save_bayesian_stats(_singleton_instance)
+        
+        # 检查key复活
+        await _singleton_instance.check_key_resurrection()
         
         return _singleton_instance
 
