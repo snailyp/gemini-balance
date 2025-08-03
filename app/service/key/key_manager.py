@@ -43,32 +43,22 @@ class KeyManager:
         self._init_bayesian_stats()
 
     def _init_bayesian_stats(self):
-        """初始化贝叶斯统计数据，从现有失败计数迁移"""
-        # 尝试从文件加载已有统计数据
-        stats_file = "bayesian_key_stats.json"
-        loaded_stats = self._load_bayesian_stats(stats_file)
-        
-        # 初始化普通API keys的贝叶斯统计
+        """初始化贝叶斯统计数据的基本结构（实际数据由持久化层恢复）"""
+        # 初始化普通API keys的贝叶斯统计（使用默认值，将被持久化层覆盖）
         for key in self.api_keys:
-            if key in loaded_stats.get("key_stats", {}):
-                self.key_stats[key] = tuple(loaded_stats["key_stats"][key])
-            else:
-                # 从现有失败计数迁移: alpha=1, beta=1+failures
-                alpha = settings.BAYESIAN_ALPHA_PRIOR
-                beta = settings.BAYESIAN_BETA_PRIOR + self.key_failure_counts.get(key, 0)
-                self.key_stats[key] = (alpha, beta)
+            # 从现有失败计数迁移作为默认值: alpha=1, beta=1+failures
+            alpha = settings.BAYESIAN_ALPHA_PRIOR
+            beta = settings.BAYESIAN_BETA_PRIOR + self.key_failure_counts.get(key, 0)
+            self.key_stats[key] = (alpha, beta)
         
-        # 初始化Vertex API keys的贝叶斯统计
+        # 初始化Vertex API keys的贝叶斯统计（使用默认值，将被持久化层覆盖）
         for key in self.vertex_api_keys:
-            if key in loaded_stats.get("vertex_key_stats", {}):
-                self.vertex_key_stats[key] = tuple(loaded_stats["vertex_key_stats"][key])
-            else:
-                # 从现有失败计数迁移
-                alpha = settings.BAYESIAN_ALPHA_PRIOR
-                beta = settings.BAYESIAN_BETA_PRIOR + self.vertex_key_failure_counts.get(key, 0)
-                self.vertex_key_stats[key] = (alpha, beta)
+            # 从现有失败计数迁移作为默认值
+            alpha = settings.BAYESIAN_ALPHA_PRIOR
+            beta = settings.BAYESIAN_BETA_PRIOR + self.vertex_key_failure_counts.get(key, 0)
+            self.vertex_key_stats[key] = (alpha, beta)
         
-        logger.info(f"Initialized Bayesian stats for {len(self.key_stats)} API keys and {len(self.vertex_key_stats)} Vertex keys")
+        logger.debug(f"Pre-initialized Bayesian stats structure for {len(self.key_stats)} API keys and {len(self.vertex_key_stats)} Vertex keys")
 
     def _load_bayesian_stats(self, file_path: str) -> dict:
         """从文件加载贝叶斯统计数据"""
@@ -377,6 +367,9 @@ class KeyManager:
                 # 如果key不在统计中，初始化
                 self.key_stats[api_key] = (settings.BAYESIAN_ALPHA_PRIOR + 1, settings.BAYESIAN_BETA_PRIOR)
                 logger.debug(f"Initialized and updated success for new key {redact_key_for_logging(api_key)}")
+        
+        # 触发周期性保存
+        await _auto_save_bayesian_stats(self)
 
     async def update_key_failure(self, api_key: str):
         """更新API key失败统计 (beta += 1)"""
@@ -389,6 +382,9 @@ class KeyManager:
                 # 如果key不在统计中，初始化
                 self.key_stats[api_key] = (settings.BAYESIAN_ALPHA_PRIOR, settings.BAYESIAN_BETA_PRIOR + 1)
                 logger.debug(f"Initialized and updated failure for new key {redact_key_for_logging(api_key)}")
+        
+        # 触发周期性保存
+        await _auto_save_bayesian_stats(self)
 
     async def update_vertex_key_success(self, api_key: str):
         """更新Vertex API key成功统计 (alpha += 1)"""
@@ -401,6 +397,9 @@ class KeyManager:
                 # 如果key不在统计中，初始化
                 self.vertex_key_stats[api_key] = (settings.BAYESIAN_ALPHA_PRIOR + 1, settings.BAYESIAN_BETA_PRIOR)
                 logger.debug(f"Initialized and updated Vertex success for new key {redact_key_for_logging(api_key)}")
+        
+        # 触发周期性保存
+        await _auto_save_bayesian_stats(self)
 
     async def update_vertex_key_failure(self, api_key: str):
         """更新Vertex API key失败统计 (beta += 1)"""
@@ -413,6 +412,9 @@ class KeyManager:
                 # 如果key不在统计中，初始化
                 self.vertex_key_stats[api_key] = (settings.BAYESIAN_ALPHA_PRIOR, settings.BAYESIAN_BETA_PRIOR + 1)
                 logger.debug(f"Initialized and updated Vertex failure for new key {redact_key_for_logging(api_key)}")
+        
+        # 触发周期性保存
+        await _auto_save_bayesian_stats(self)
 
 
 _singleton_instance = None
@@ -423,6 +425,11 @@ _preserved_old_api_keys_for_reset: Union[list, None] = None
 _preserved_vertex_old_api_keys_for_reset: Union[list, None] = None
 _preserved_next_key_in_cycle: Union[str, None] = None
 _preserved_vertex_next_key_in_cycle: Union[str, None] = None
+
+# 贝叶斯统计的全局保存变量
+_preserved_bayesian_stats: Union[Dict[str, Tuple[int, int]], None] = None
+_preserved_vertex_bayesian_stats: Union[Dict[str, Tuple[int, int]], None] = None
+_last_stats_save_time: float = 0
 
 
 async def get_key_manager_instance(
@@ -461,6 +468,9 @@ async def get_key_manager_instance(
             logger.info(
                 f"KeyManager instance created/re-created with {len(api_keys)} API keys and {len(vertex_api_keys)} Vertex Express API keys."
             )
+            
+            # 恢复贝叶斯统计
+            await _restore_bayesian_stats(_singleton_instance)
 
             # 1. 恢复失败计数
             if _preserved_failure_counts:
@@ -627,6 +637,9 @@ async def get_key_manager_instance(
             _preserved_vertex_old_api_keys_for_reset = None
             _preserved_vertex_next_key_in_cycle = None
 
+        # 定期保存贝叶斯统计
+        await _auto_save_bayesian_stats(_singleton_instance)
+        
         return _singleton_instance
 
 
@@ -636,9 +649,15 @@ async def reset_key_manager_instance():
     将保存当前实例的状态（失败计数、旧 API keys、下一个 key 提示）
     以供下一次 get_key_manager_instance 调用时恢复。
     """
-    global _singleton_instance, _preserved_failure_counts, _preserved_vertex_failure_counts, _preserved_old_api_keys_for_reset, _preserved_vertex_old_api_keys_for_reset, _preserved_next_key_in_cycle, _preserved_vertex_next_key_in_cycle
+    global _singleton_instance, _preserved_failure_counts, _preserved_vertex_failure_counts, _preserved_old_api_keys_for_reset, _preserved_vertex_old_api_keys_for_reset, _preserved_next_key_in_cycle, _preserved_vertex_next_key_in_cycle, _preserved_bayesian_stats, _preserved_vertex_bayesian_stats
     async with _singleton_lock:
         if _singleton_instance:
+            # 0. 保存贝叶斯统计
+            async with _singleton_instance.bayesian_stats_lock:
+                _preserved_bayesian_stats = _singleton_instance.key_stats.copy()
+            async with _singleton_instance.vertex_bayesian_stats_lock:
+                _preserved_vertex_bayesian_stats = _singleton_instance.vertex_key_stats.copy()
+            
             # 1. 保存失败计数
             _preserved_failure_counts = _singleton_instance.key_failure_counts.copy()
             _preserved_vertex_failure_counts = (
@@ -693,3 +712,80 @@ async def reset_key_manager_instance():
             logger.info(
                 "KeyManager instance was not set (or already reset), no reset action performed."
             )
+
+
+async def _restore_bayesian_stats(instance: KeyManager):
+    """恢复贝叶斯统计数据到KeyManager实例"""
+    global _preserved_bayesian_stats, _preserved_vertex_bayesian_stats
+    
+    try:
+        # 标记是否有全局状态恢复
+        has_preserved_state = bool(_preserved_bayesian_stats or _preserved_vertex_bayesian_stats)
+        
+        # 首先尝试从全局变量恢复（重置后的状态）
+        if _preserved_bayesian_stats:
+            async with instance.bayesian_stats_lock:
+                for key in instance.api_keys:
+                    if key in _preserved_bayesian_stats:
+                        instance.key_stats[key] = _preserved_bayesian_stats[key]
+            logger.info(f"Restored Bayesian stats for {len(_preserved_bayesian_stats)} API keys from preserved state")
+            _preserved_bayesian_stats = None
+        
+        if _preserved_vertex_bayesian_stats:
+            async with instance.vertex_bayesian_stats_lock:
+                for key in instance.vertex_api_keys:
+                    if key in _preserved_vertex_bayesian_stats:
+                        instance.vertex_key_stats[key] = _preserved_vertex_bayesian_stats[key]
+            logger.info(f"Restored Vertex Bayesian stats for {len(_preserved_vertex_bayesian_stats)} Vertex keys from preserved state")
+            _preserved_vertex_bayesian_stats = None
+        
+        # 如果没有全局状态，尝试从文件加载
+        if not has_preserved_state:
+            loaded_stats = instance._load_bayesian_stats("bayesian_key_stats.json")
+            if loaded_stats:
+                async with instance.bayesian_stats_lock:
+                    key_stats = loaded_stats.get("key_stats", {})
+                    for key in instance.api_keys:
+                        if key in key_stats:
+                            instance.key_stats[key] = tuple(key_stats[key])
+                
+                async with instance.vertex_bayesian_stats_lock:
+                    vertex_key_stats = loaded_stats.get("vertex_key_stats", {})
+                    for key in instance.vertex_api_keys:
+                        if key in vertex_key_stats:
+                            instance.vertex_key_stats[key] = tuple(vertex_key_stats[key])
+                
+                logger.info(f"Loaded Bayesian stats from file: {len(key_stats)} API keys, {len(vertex_key_stats)} Vertex keys")
+            else:
+                logger.info("No saved Bayesian stats found, using initialized defaults")
+                
+    except Exception as e:
+        logger.error(f"Error restoring Bayesian stats: {e}")
+
+
+async def _auto_save_bayesian_stats(instance: KeyManager):
+    """自动保存贝叶斯统计数据（如果距离上次保存超过间隔时间）"""
+    global _last_stats_save_time
+    
+    current_time = time.time()
+    if current_time - _last_stats_save_time >= settings.BAYESIAN_STATS_DUMP_INTERVAL:
+        try:
+            instance._save_bayesian_stats("bayesian_key_stats.json")
+            _last_stats_save_time = current_time
+            logger.debug(f"Auto-saved Bayesian stats at {current_time}")
+        except Exception as e:
+            logger.error(f"Error auto-saving Bayesian stats: {e}")
+
+
+async def save_bayesian_stats_on_shutdown():
+    """在应用关闭时强制保存贝叶斯统计数据"""
+    global _singleton_instance
+    
+    if _singleton_instance:
+        try:
+            _singleton_instance._save_bayesian_stats("bayesian_key_stats.json")
+            logger.info("Saved Bayesian stats on shutdown")
+        except Exception as e:
+            logger.error(f"Error saving Bayesian stats on shutdown: {e}")
+    else:
+        logger.warning("No KeyManager instance to save stats from")
