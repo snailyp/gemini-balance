@@ -272,30 +272,42 @@ class KeyManager:
         valid_keys = []
         sampled_scores = []
         
-        async with self.bayesian_stats_lock:
-            # 过滤出有效的keys (beta值未达到失效阈值)
-            for key in self.api_keys:
-                if key in self.key_stats:
-                    alpha, beta = self.key_stats[key]
-                    # 使用原有的MAX_FAILURES逻辑，但基于beta值判断
-                    failure_count = beta - settings.BAYESIAN_BETA_PRIOR
-                    if failure_count < self.MAX_FAILURES:
-                        valid_keys.append(key)
-                        # Thompson Sampling: 从Beta分布采样
-                        try:
-                            if alpha > 0 and beta > 0:
-                                sampled_prob = random.betavariate(alpha, beta)
-                            else:
-                                # 防止参数异常，使用均匀分布
-                                sampled_prob = random.random()
-                            sampled_scores.append(sampled_prob)
-                        except ValueError:
-                            # betavariate参数异常时的fallback
-                            sampled_scores.append(random.random())
-                else:
-                    # 如果key不在统计中，给予默认概率
-                    valid_keys.append(key)
-                    sampled_scores.append(0.5)
+        # 同时检查原有失败计数和贝叶斯统计，确保一致性
+        async with self.failure_count_lock:
+            async with self.bayesian_stats_lock:
+                for key in self.api_keys:
+                    # 使用原有的失败计数作为主要判断标准
+                    original_failure_count = self.key_failure_counts.get(key, 0)
+                    
+                    # 检查key是否在有效范围内
+                    if original_failure_count < self.MAX_FAILURES:
+                        if key in self.key_stats:
+                            alpha, beta = self.key_stats[key]
+                            # 双重验证：也检查贝叶斯统计的失败次数
+                            bayesian_failure_count = beta - settings.BAYESIAN_BETA_PRIOR
+                            
+                            # 如果两个计数不一致，记录警告但继续使用原有计数
+                            if abs(bayesian_failure_count - original_failure_count) > 1:
+                                logger.warning(f"Key {redact_key_for_logging(key)} has inconsistent failure counts: "
+                                             f"original={original_failure_count}, bayesian={bayesian_failure_count}")
+                            
+                            valid_keys.append(key)
+                            # Thompson Sampling: 从Beta分布采样
+                            try:
+                                if alpha > 0 and beta > 0:
+                                    sampled_prob = random.betavariate(alpha, beta)
+                                else:
+                                    # 防止参数异常，使用均匀分布
+                                    sampled_prob = random.random()
+                                sampled_scores.append(sampled_prob)
+                            except ValueError:
+                                # betavariate参数异常时的fallback
+                                sampled_scores.append(random.random())
+                        else:
+                            # 如果key不在贝叶斯统计中，给予默认概率但仍然包含
+                            valid_keys.append(key)
+                            sampled_scores.append(0.5)
+                            logger.debug(f"Key {redact_key_for_logging(key)} not in Bayesian stats, using default probability")
         
         if valid_keys and sampled_scores:
             # 选择采样概率最高的key
@@ -318,27 +330,40 @@ class KeyManager:
         valid_keys = []
         sampled_scores = []
         
-        async with self.vertex_bayesian_stats_lock:
-            # 过滤出有效的vertex keys
-            for key in self.vertex_api_keys:
-                if key in self.vertex_key_stats:
-                    alpha, beta = self.vertex_key_stats[key]
-                    # 使用原有的MAX_FAILURES逻辑，但基于beta值判断
-                    failure_count = beta - settings.BAYESIAN_BETA_PRIOR
-                    if failure_count < self.MAX_FAILURES:
-                        valid_keys.append(key)
-                        # Thompson Sampling: 从Beta分布采样
-                        try:
-                            if alpha > 0 and beta > 0:
-                                sampled_prob = random.betavariate(alpha, beta)
-                            else:
-                                sampled_prob = random.random()
-                            sampled_scores.append(sampled_prob)
-                        except ValueError:
-                            sampled_scores.append(random.random())
-                else:
-                    valid_keys.append(key)
-                    sampled_scores.append(0.5)
+        # 同时检查原有失败计数和贝叶斯统计，确保一致性
+        async with self.vertex_failure_count_lock:
+            async with self.vertex_bayesian_stats_lock:
+                for key in self.vertex_api_keys:
+                    # 使用原有的失败计数作为主要判断标准
+                    original_failure_count = self.vertex_key_failure_counts.get(key, 0)
+                    
+                    # 检查key是否在有效范围内
+                    if original_failure_count < self.MAX_FAILURES:
+                        if key in self.vertex_key_stats:
+                            alpha, beta = self.vertex_key_stats[key]
+                            # 双重验证：也检查贝叶斯统计的失败次数
+                            bayesian_failure_count = beta - settings.BAYESIAN_BETA_PRIOR
+                            
+                            # 如果两个计数不一致，记录警告但继续使用原有计数
+                            if abs(bayesian_failure_count - original_failure_count) > 1:
+                                logger.warning(f"Vertex key {redact_key_for_logging(key)} has inconsistent failure counts: "
+                                             f"original={original_failure_count}, bayesian={bayesian_failure_count}")
+                            
+                            valid_keys.append(key)
+                            # Thompson Sampling: 从Beta分布采样
+                            try:
+                                if alpha > 0 and beta > 0:
+                                    sampled_prob = random.betavariate(alpha, beta)
+                                else:
+                                    sampled_prob = random.random()
+                                sampled_scores.append(sampled_prob)
+                            except ValueError:
+                                sampled_scores.append(random.random())
+                        else:
+                            # 如果key不在贝叶斯统计中，给予默认概率但仍然包含
+                            valid_keys.append(key)
+                            sampled_scores.append(0.5)
+                            logger.debug(f"Vertex key {redact_key_for_logging(key)} not in Bayesian stats, using default probability")
         
         if valid_keys and sampled_scores:
             # 选择采样概率最高的key
@@ -415,6 +440,38 @@ class KeyManager:
         
         # 触发周期性保存
         await _auto_save_bayesian_stats(self)
+    
+    async def sync_failure_counts(self):
+        """同步原有失败计数和贝叶斯统计，确保一致性"""
+        async with self.failure_count_lock:
+            async with self.bayesian_stats_lock:
+                # 同步普通API keys
+                for key in self.api_keys:
+                    if key in self.key_stats:
+                        alpha, beta = self.key_stats[key]
+                        expected_failures = beta - settings.BAYESIAN_BETA_PRIOR
+                        actual_failures = self.key_failure_counts.get(key, 0)
+                        
+                        if expected_failures != actual_failures:
+                            logger.info(f"Syncing failure counts for key {redact_key_for_logging(key)}: "
+                                       f"original={actual_failures} -> bayesian={expected_failures}")
+                            # 以贝叶斯统计为准，更新原有计数
+                            self.key_failure_counts[key] = max(0, expected_failures)
+        
+        async with self.vertex_failure_count_lock:
+            async with self.vertex_bayesian_stats_lock:
+                # 同步Vertex API keys
+                for key in self.vertex_api_keys:
+                    if key in self.vertex_key_stats:
+                        alpha, beta = self.vertex_key_stats[key]
+                        expected_failures = beta - settings.BAYESIAN_BETA_PRIOR
+                        actual_failures = self.vertex_key_failure_counts.get(key, 0)
+                        
+                        if expected_failures != actual_failures:
+                            logger.info(f"Syncing failure counts for Vertex key {redact_key_for_logging(key)}: "
+                                       f"original={actual_failures} -> bayesian={expected_failures}")
+                            # 以贝叶斯统计为准，更新原有计数
+                            self.vertex_key_failure_counts[key] = max(0, expected_failures)
 
 
 _singleton_instance = None
@@ -471,6 +528,9 @@ async def get_key_manager_instance(
             
             # 恢复贝叶斯统计
             await _restore_bayesian_stats(_singleton_instance)
+            
+            # 同步失败计数确保一致性
+            await _singleton_instance.sync_failure_counts()
 
             # 1. 恢复失败计数
             if _preserved_failure_counts:
