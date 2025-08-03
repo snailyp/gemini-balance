@@ -1,7 +1,10 @@
 import asyncio
+import json
+import os
 import random
+import time
 from itertools import cycle
-from typing import Dict, Union
+from typing import Dict, Union, Tuple
 
 from app.config.config import settings
 from app.log.logger import get_key_manager_logger
@@ -20,12 +23,76 @@ class KeyManager:
         self.vertex_key_cycle_lock = asyncio.Lock()
         self.failure_count_lock = asyncio.Lock()
         self.vertex_failure_count_lock = asyncio.Lock()
+        
+        # 原有的失败计数器
         self.key_failure_counts: Dict[str, int] = {key: 0 for key in api_keys}
         self.vertex_key_failure_counts: Dict[str, int] = {
             key: 0 for key in vertex_api_keys
         }
+        
+        # 贝叶斯统计数据 (alpha, beta) 表示 Beta(alpha, beta) 分布参数
+        self.bayesian_stats_lock = asyncio.Lock()
+        self.vertex_bayesian_stats_lock = asyncio.Lock()
+        self.key_stats: Dict[str, Tuple[int, int]] = {}
+        self.vertex_key_stats: Dict[str, Tuple[int, int]] = {}
+        
         self.MAX_FAILURES = settings.MAX_FAILURES
         self.paid_key = settings.PAID_KEY
+        
+        # 初始化贝叶斯统计
+        self._init_bayesian_stats()
+
+    def _init_bayesian_stats(self):
+        """初始化贝叶斯统计数据，从现有失败计数迁移"""
+        # 尝试从文件加载已有统计数据
+        stats_file = "bayesian_key_stats.json"
+        loaded_stats = self._load_bayesian_stats(stats_file)
+        
+        # 初始化普通API keys的贝叶斯统计
+        for key in self.api_keys:
+            if key in loaded_stats.get("key_stats", {}):
+                self.key_stats[key] = tuple(loaded_stats["key_stats"][key])
+            else:
+                # 从现有失败计数迁移: alpha=1, beta=1+failures
+                alpha = settings.BAYESIAN_ALPHA_PRIOR
+                beta = settings.BAYESIAN_BETA_PRIOR + self.key_failure_counts.get(key, 0)
+                self.key_stats[key] = (alpha, beta)
+        
+        # 初始化Vertex API keys的贝叶斯统计
+        for key in self.vertex_api_keys:
+            if key in loaded_stats.get("vertex_key_stats", {}):
+                self.vertex_key_stats[key] = tuple(loaded_stats["vertex_key_stats"][key])
+            else:
+                # 从现有失败计数迁移
+                alpha = settings.BAYESIAN_ALPHA_PRIOR
+                beta = settings.BAYESIAN_BETA_PRIOR + self.vertex_key_failure_counts.get(key, 0)
+                self.vertex_key_stats[key] = (alpha, beta)
+        
+        logger.info(f"Initialized Bayesian stats for {len(self.key_stats)} API keys and {len(self.vertex_key_stats)} Vertex keys")
+
+    def _load_bayesian_stats(self, file_path: str) -> dict:
+        """从文件加载贝叶斯统计数据"""
+        try:
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load Bayesian stats from {file_path}: {e}")
+        return {}
+
+    def _save_bayesian_stats(self, file_path: str = "bayesian_key_stats.json"):
+        """保存贝叶斯统计数据到文件"""
+        try:
+            stats = {
+                "key_stats": {k: list(v) for k, v in self.key_stats.items()},
+                "vertex_key_stats": {k: list(v) for k, v in self.vertex_key_stats.items()},
+                "timestamp": time.time()
+            }
+            with open(file_path, 'w') as f:
+                json.dump(stats, f, indent=2)
+            logger.debug(f"Saved Bayesian stats to {file_path}")
+        except Exception as e:
+            logger.error(f"Failed to save Bayesian stats to {file_path}: {e}")
 
     async def get_paid_key(self) -> str:
         return self.paid_key
@@ -114,12 +181,17 @@ class KeyManager:
 
     async def handle_api_failure(self, api_key: str, retries: int) -> str:
         """处理API调用失败"""
+        # 更新原有失败计数
         async with self.failure_count_lock:
             self.key_failure_counts[api_key] += 1
             if self.key_failure_counts[api_key] >= self.MAX_FAILURES:
                 logger.warning(
                     f"API key {redact_key_for_logging(api_key)} has failed {self.MAX_FAILURES} times"
                 )
+        
+        # 更新贝叶斯统计 (失败: beta += 1)
+        await self.update_key_failure(api_key)
+        
         if retries < settings.MAX_RETRIES:
             return await self.get_next_working_key()
         else:
@@ -127,12 +199,16 @@ class KeyManager:
 
     async def handle_vertex_api_failure(self, api_key: str, retries: int) -> str:
         """处理 Vertex Express API 调用失败"""
+        # 更新原有失败计数
         async with self.vertex_failure_count_lock:
             self.vertex_key_failure_counts[api_key] += 1
             if self.vertex_key_failure_counts[api_key] >= self.MAX_FAILURES:
                 logger.warning(
                     f"Vertex Express API key {redact_key_for_logging(api_key)} has failed {self.MAX_FAILURES} times"
                 )
+        
+        # 更新贝叶斯统计 (失败: beta += 1)
+        await self.update_vertex_key_failure(api_key)
 
     def get_fail_count(self, key: str) -> int:
         """获取指定密钥的失败次数"""
@@ -197,23 +273,146 @@ class KeyManager:
         return self.api_keys[0]
 
     async def get_random_valid_key(self) -> str:
-        """获取随机的有效API key"""
+        """获取随机的有效API key (已弃用，使用get_bayesian_key代替)"""
+        logger.warning("get_random_valid_key is deprecated, using get_bayesian_key instead")
+        return await self.get_bayesian_key()
+
+    async def get_bayesian_key(self) -> str:
+        """使用贝叶斯Thompson Sampling获取最优API key"""
         valid_keys = []
-        async with self.failure_count_lock:
-            for key in self.key_failure_counts:
-                if self.key_failure_counts[key] < self.MAX_FAILURES:
-                    valid_keys.append(key)
+        sampled_scores = []
         
-        if valid_keys:
-            return random.choice(valid_keys)
+        async with self.bayesian_stats_lock:
+            # 过滤出有效的keys (beta值未达到失效阈值)
+            for key in self.api_keys:
+                if key in self.key_stats:
+                    alpha, beta = self.key_stats[key]
+                    # 使用原有的MAX_FAILURES逻辑，但基于beta值判断
+                    failure_count = beta - settings.BAYESIAN_BETA_PRIOR
+                    if failure_count < self.MAX_FAILURES:
+                        valid_keys.append(key)
+                        # Thompson Sampling: 从Beta分布采样
+                        try:
+                            if alpha > 0 and beta > 0:
+                                sampled_prob = random.betavariate(alpha, beta)
+                            else:
+                                # 防止参数异常，使用均匀分布
+                                sampled_prob = random.random()
+                            sampled_scores.append(sampled_prob)
+                        except ValueError:
+                            # betavariate参数异常时的fallback
+                            sampled_scores.append(random.random())
+                else:
+                    # 如果key不在统计中，给予默认概率
+                    valid_keys.append(key)
+                    sampled_scores.append(0.5)
+        
+        if valid_keys and sampled_scores:
+            # 选择采样概率最高的key
+            best_idx = sampled_scores.index(max(sampled_scores))
+            selected_key = valid_keys[best_idx]
+            logger.debug(f"Bayesian selection: chose key {redact_key_for_logging(selected_key)} "
+                        f"with sampled prob {sampled_scores[best_idx]:.4f}")
+            return selected_key
         
         # 如果没有有效的key，返回第一个key作为fallback
         if self.api_keys:
-            logger.warning("No valid keys available, returning first key as fallback.")
+            logger.warning("No valid keys available for Bayesian selection, returning first key as fallback.")
             return self.api_keys[0]
         
-        logger.warning("API key list is empty, cannot get random valid key.")
+        logger.warning("API key list is empty, cannot perform Bayesian key selection.")
         return ""
+
+    async def get_bayesian_vertex_key(self) -> str:
+        """使用贝叶斯Thompson Sampling获取最优Vertex API key"""
+        valid_keys = []
+        sampled_scores = []
+        
+        async with self.vertex_bayesian_stats_lock:
+            # 过滤出有效的vertex keys
+            for key in self.vertex_api_keys:
+                if key in self.vertex_key_stats:
+                    alpha, beta = self.vertex_key_stats[key]
+                    # 使用原有的MAX_FAILURES逻辑，但基于beta值判断
+                    failure_count = beta - settings.BAYESIAN_BETA_PRIOR
+                    if failure_count < self.MAX_FAILURES:
+                        valid_keys.append(key)
+                        # Thompson Sampling: 从Beta分布采样
+                        try:
+                            if alpha > 0 and beta > 0:
+                                sampled_prob = random.betavariate(alpha, beta)
+                            else:
+                                sampled_prob = random.random()
+                            sampled_scores.append(sampled_prob)
+                        except ValueError:
+                            sampled_scores.append(random.random())
+                else:
+                    valid_keys.append(key)
+                    sampled_scores.append(0.5)
+        
+        if valid_keys and sampled_scores:
+            # 选择采样概率最高的key
+            best_idx = sampled_scores.index(max(sampled_scores))
+            selected_key = valid_keys[best_idx]
+            logger.debug(f"Bayesian Vertex selection: chose key {redact_key_for_logging(selected_key)} "
+                        f"with sampled prob {sampled_scores[best_idx]:.4f}")
+            return selected_key
+        
+        # 如果没有有效的key，返回第一个key作为fallback
+        if self.vertex_api_keys:
+            logger.warning("No valid Vertex keys available for Bayesian selection, returning first key as fallback.")
+            return self.vertex_api_keys[0]
+        
+        logger.warning("Vertex API key list is empty, cannot perform Bayesian key selection.")
+        return ""
+
+    async def update_key_success(self, api_key: str):
+        """更新API key成功统计 (alpha += 1)"""
+        async with self.bayesian_stats_lock:
+            if api_key in self.key_stats:
+                alpha, beta = self.key_stats[api_key]
+                self.key_stats[api_key] = (alpha + 1, beta)
+                logger.debug(f"Updated success for key {redact_key_for_logging(api_key)}: alpha={alpha+1}, beta={beta}")
+            else:
+                # 如果key不在统计中，初始化
+                self.key_stats[api_key] = (settings.BAYESIAN_ALPHA_PRIOR + 1, settings.BAYESIAN_BETA_PRIOR)
+                logger.debug(f"Initialized and updated success for new key {redact_key_for_logging(api_key)}")
+
+    async def update_key_failure(self, api_key: str):
+        """更新API key失败统计 (beta += 1)"""
+        async with self.bayesian_stats_lock:
+            if api_key in self.key_stats:
+                alpha, beta = self.key_stats[api_key]
+                self.key_stats[api_key] = (alpha, beta + 1)
+                logger.debug(f"Updated failure for key {redact_key_for_logging(api_key)}: alpha={alpha}, beta={beta+1}")
+            else:
+                # 如果key不在统计中，初始化
+                self.key_stats[api_key] = (settings.BAYESIAN_ALPHA_PRIOR, settings.BAYESIAN_BETA_PRIOR + 1)
+                logger.debug(f"Initialized and updated failure for new key {redact_key_for_logging(api_key)}")
+
+    async def update_vertex_key_success(self, api_key: str):
+        """更新Vertex API key成功统计 (alpha += 1)"""
+        async with self.vertex_bayesian_stats_lock:
+            if api_key in self.vertex_key_stats:
+                alpha, beta = self.vertex_key_stats[api_key]
+                self.vertex_key_stats[api_key] = (alpha + 1, beta)
+                logger.debug(f"Updated Vertex success for key {redact_key_for_logging(api_key)}: alpha={alpha+1}, beta={beta}")
+            else:
+                # 如果key不在统计中，初始化
+                self.vertex_key_stats[api_key] = (settings.BAYESIAN_ALPHA_PRIOR + 1, settings.BAYESIAN_BETA_PRIOR)
+                logger.debug(f"Initialized and updated Vertex success for new key {redact_key_for_logging(api_key)}")
+
+    async def update_vertex_key_failure(self, api_key: str):
+        """更新Vertex API key失败统计 (beta += 1)"""
+        async with self.vertex_bayesian_stats_lock:
+            if api_key in self.vertex_key_stats:
+                alpha, beta = self.vertex_key_stats[api_key]
+                self.vertex_key_stats[api_key] = (alpha, beta + 1)
+                logger.debug(f"Updated Vertex failure for key {redact_key_for_logging(api_key)}: alpha={alpha}, beta={beta+1}")
+            else:
+                # 如果key不在统计中，初始化
+                self.vertex_key_stats[api_key] = (settings.BAYESIAN_ALPHA_PRIOR, settings.BAYESIAN_BETA_PRIOR + 1)
+                logger.debug(f"Initialized and updated Vertex failure for new key {redact_key_for_logging(api_key)}")
 
 
 _singleton_instance = None

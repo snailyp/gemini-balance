@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     BASE_URL: str = f"https://generativelanguage.googleapis.com/{API_VERSION}"
     AUTH_TOKEN: str = ""
     MAX_FAILURES: int = 3
+    
+    # 贝叶斯算法配置
+    BAYESIAN_ALPHA_PRIOR: int = 1  # Beta分布的α先验参数
+    BAYESIAN_BETA_PRIOR: int = 1   # Beta分布的β先验参数
+    BAYESIAN_DECAY_FACTOR: float = 0.995  # 时间衰减因子
+    BAYESIAN_STATS_DUMP_INTERVAL: int = 300  # 统计信息保存间隔(秒)
+    
     TEST_MODEL: str = DEFAULT_MODEL
     TIME_OUT: int = DEFAULT_TIMEOUT
     MAX_RETRIES: int = MAX_RETRIES
