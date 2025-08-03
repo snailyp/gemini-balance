@@ -938,24 +938,139 @@ async def _restore_bayesian_stats(instance: KeyManager):
         if not has_preserved_state:
             loaded_stats = instance._load_bayesian_stats("bayesian_key_stats.json")
             if loaded_stats:
-                async with instance.bayesian_stats_lock:
-                    key_stats = loaded_stats.get("key_stats", {})
-                    for key in instance.api_keys:
-                        if key in key_stats:
-                            instance.key_stats[key] = tuple(key_stats[key])
-                
-                async with instance.vertex_bayesian_stats_lock:
-                    vertex_key_stats = loaded_stats.get("vertex_key_stats", {})
-                    for key in instance.vertex_api_keys:
-                        if key in vertex_key_stats:
-                            instance.vertex_key_stats[key] = tuple(vertex_key_stats[key])
-                
-                logger.info(f"Loaded Bayesian stats from file: {len(key_stats)} API keys, {len(vertex_key_stats)} Vertex keys")
+                # 从文件恢复已有的统计数据
+                await _restore_from_file(instance, loaded_stats)
             else:
-                logger.info("No saved Bayesian stats found, using initialized defaults")
+                # 首次运行或文件不存在，执行失败计数迁移
+                await _migrate_failure_counts_to_bayesian(instance)
                 
     except Exception as e:
         logger.error(f"Error restoring Bayesian stats: {e}")
+
+
+async def _restore_from_file(instance: KeyManager, loaded_stats: dict):
+    """从文件恢复贝叶斯统计数据，同时处理新增keys的迁移"""
+    try:
+        migrated_keys = []
+        
+        async with instance.bayesian_stats_lock:
+            key_stats = loaded_stats.get("key_stats", {})
+            for key in instance.api_keys:
+                if key in key_stats:
+                    # 恢复已有的统计数据
+                    instance.key_stats[key] = tuple(key_stats[key])
+                else:
+                    # 新增的key需要迁移失败计数
+                    failure_count = instance.key_failure_counts.get(key, 0)
+                    if failure_count > 0:
+                        alpha = settings.BAYESIAN_ALPHA_PRIOR
+                        beta = settings.BAYESIAN_BETA_PRIOR + failure_count
+                        instance.key_stats[key] = (alpha, beta)
+                        migrated_keys.append(f"{redact_key_for_logging(key)}(failures: {failure_count})")
+                        logger.info(f"Migrated failure count for new key {redact_key_for_logging(key)}: {failure_count} failures -> beta={beta}")
+        
+        async with instance.vertex_bayesian_stats_lock:
+            vertex_key_stats = loaded_stats.get("vertex_key_stats", {})
+            for key in instance.vertex_api_keys:
+                if key in vertex_key_stats:
+                    # 恢复已有的统计数据
+                    instance.vertex_key_stats[key] = tuple(vertex_key_stats[key])
+                else:
+                    # 新增的vertex key需要迁移失败计数
+                    failure_count = instance.vertex_key_failure_counts.get(key, 0)
+                    if failure_count > 0:
+                        alpha = settings.BAYESIAN_ALPHA_PRIOR
+                        beta = settings.BAYESIAN_BETA_PRIOR + failure_count
+                        instance.vertex_key_stats[key] = (alpha, beta)
+                        migrated_keys.append(f"Vertex-{redact_key_for_logging(key)}(failures: {failure_count})")
+                        logger.info(f"Migrated failure count for new Vertex key {redact_key_for_logging(key)}: {failure_count} failures -> beta={beta}")
+        
+        logger.info(f"Loaded Bayesian stats from file: {len(key_stats)} API keys, {len(vertex_key_stats)} Vertex keys")
+        if migrated_keys:
+            logger.info(f"Migrated failure counts for {len(migrated_keys)} new keys: {', '.join(migrated_keys)}")
+    
+    except Exception as e:
+        logger.error(f"Error restoring from file: {e}")
+
+
+async def _migrate_failure_counts_to_bayesian(instance: KeyManager):
+    """首次运行时，将现有失败计数完整迁移到贝叶斯统计系统"""
+    
+    # 检查是否启用迁移
+    if not settings.BAYESIAN_MIGRATION_ENABLED:
+        logger.info("🚫 Bayesian migration is disabled, using default initialization")
+        return
+    
+    try:
+        migrated_api_keys = []
+        migrated_vertex_keys = []
+        
+        # 备份原始统计数据
+        if settings.BAYESIAN_MIGRATION_BACKUP:
+            await _backup_original_stats(instance)
+        
+        logger.info("🔄 Starting failure count migration to Bayesian statistics...")
+        
+        async with instance.bayesian_stats_lock:
+            for key in instance.api_keys:
+                failure_count = instance.key_failure_counts.get(key, 0)
+                alpha = settings.BAYESIAN_ALPHA_PRIOR
+                beta = settings.BAYESIAN_BETA_PRIOR + failure_count
+                
+                # 覆盖初始化时的默认值
+                instance.key_stats[key] = (alpha, beta)
+                
+                if failure_count > 0:
+                    migrated_api_keys.append(f"{redact_key_for_logging(key)}({failure_count})")
+                    logger.debug(f"Migrated API key {redact_key_for_logging(key)}: {failure_count} failures -> alpha={alpha}, beta={beta}")
+        
+        async with instance.vertex_bayesian_stats_lock:
+            for key in instance.vertex_api_keys:
+                failure_count = instance.vertex_key_failure_counts.get(key, 0)
+                alpha = settings.BAYESIAN_ALPHA_PRIOR
+                beta = settings.BAYESIAN_BETA_PRIOR + failure_count
+                
+                # 覆盖初始化时的默认值
+                instance.vertex_key_stats[key] = (alpha, beta)
+                
+                if failure_count > 0:
+                    migrated_vertex_keys.append(f"{redact_key_for_logging(key)}({failure_count})")
+                    logger.debug(f"Migrated Vertex key {redact_key_for_logging(key)}: {failure_count} failures -> alpha={alpha}, beta={beta}")
+        
+        logger.info("🔄 Completed initial failure count migration to Bayesian statistics")
+        if migrated_api_keys:
+            logger.info(f"📊 Migrated {len(migrated_api_keys)} API keys with failures: {', '.join(migrated_api_keys)}")
+        if migrated_vertex_keys:
+            logger.info(f"📊 Migrated {len(migrated_vertex_keys)} Vertex keys with failures: {', '.join(migrated_vertex_keys)}")
+        
+        # 立即保存迁移结果
+        instance._save_bayesian_stats("bayesian_key_stats.json")
+        logger.info("💾 Saved migrated statistics to persistent storage")
+    
+    except Exception as e:
+        logger.error(f"Error migrating failure counts: {e}")
+
+
+async def _backup_original_stats(instance: KeyManager):
+    """备份原始失败计数数据"""
+    try:
+        backup_data = {
+            "timestamp": time.time(),
+            "migration_backup": True,
+            "original_failure_counts": dict(instance.key_failure_counts),
+            "original_vertex_failure_counts": dict(instance.vertex_key_failure_counts),
+            "api_keys": list(instance.api_keys),
+            "vertex_api_keys": list(instance.vertex_api_keys)
+        }
+        
+        backup_filename = f"failure_counts_backup_{int(time.time())}.json"
+        with open(backup_filename, 'w') as f:
+            json.dump(backup_data, f, indent=2)
+        
+        logger.info(f"💾 Backed up original failure counts to {backup_filename}")
+        
+    except Exception as e:
+        logger.error(f"Error backing up original stats: {e}")
 
 
 async def _auto_save_bayesian_stats(instance: KeyManager):
