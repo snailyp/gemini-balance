@@ -19,12 +19,13 @@ ENV BASE_URL=https://generativelanguage.googleapis.com/v1beta
 ENV TOOLS_CODE_EXECUTION_ENABLED=false
 ENV IMAGE_MODELS='["gemini-2.0-flash-exp"]'
 ENV SEARCH_MODELS='["gemini-2.0-flash-exp","gemini-2.0-pro-exp"]'
+ENV WEB_CONCURRENCY=4
 
 # Expose port
-EXPOSE 6000
+EXPOSE 8000
 
 # Set the Python path
 ENV PYTHONPATH=/app
 
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6000", "--no-access-log"]
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "app.main:app"]

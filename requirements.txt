@@ -6,6 +6,7 @@ pydantic_settings
 requests
 starlette
 uvicorn
+gunicorn
 google-genai
 jinja2
 python-multipart

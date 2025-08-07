@@ -22,7 +22,7 @@ services:
     container_name: gemini-balance
     restart: unless-stopped
     ports:
-      - "5005:6000"
+      - "5005:8000"
     env_file:
       - .env
     depends_on:
@@ -31,7 +31,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import requests; exit(0) if requests.get('http://localhost:6000/health').status_code == 200 else exit(1)\""]
+      test: ["CMD-SHELL", "python -c \"import requests; exit(0) if requests.get('http://localhost:8000/health').status_code == 200 else exit(1)\""]
       interval: 30s
       timeout: 5s
       retries: 3
