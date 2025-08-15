@@ -56,6 +56,23 @@ class Settings(BaseSettings):
     BASE_URL: str = f"https://generativelanguage.googleapis.com/{API_VERSION}"
     AUTH_TOKEN: str = ""
     MAX_FAILURES: int = 3
+    
+    # 贝叶斯算法配置
+    BAYESIAN_ALPHA_PRIOR: int = 1  # Beta分布的α先验参数
+    BAYESIAN_BETA_PRIOR: int = 1   # Beta分布的β先验参数
+    BAYESIAN_DECAY_FACTOR: float = 0.995  # 时间衰减因子
+    BAYESIAN_STATS_DUMP_INTERVAL: int = 300  # 统计信息保存间隔(秒)
+    
+    # 无效key复活检测配置
+    KEY_RESURRECTION_ENABLED: bool = True  # 是否启用key复活检测
+    KEY_RESURRECTION_INTERVAL: int = 1800  # 复活检测间隔(秒)，默认30分钟
+    KEY_RESURRECTION_COOLDOWN: int = 3600  # key冷却时间(秒)，默认1小时后才检测
+    KEY_RESURRECTION_TEST_MODEL: str = "gemini-1.5-flash"  # 用于测试的轻量级模型
+    
+    # 失败计数迁移配置
+    BAYESIAN_MIGRATION_ENABLED: bool = True  # 是否启用失败计数迁移
+    BAYESIAN_MIGRATION_BACKUP: bool = True  # 是否在迁移前备份原始统计
+    
     TEST_MODEL: str = DEFAULT_MODEL
     TIME_OUT: int = DEFAULT_TIMEOUT
     MAX_RETRIES: int = MAX_RETRIES

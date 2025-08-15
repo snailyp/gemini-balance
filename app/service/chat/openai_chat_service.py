@@ -290,6 +290,8 @@ class OpenAIChatService:
             usage_metadata = response.get("usageMetadata", {})
             is_success = True
             status_code = 200
+            # 更新贝叶斯成功统计
+            await self.key_manager.update_key_success(api_key)
             
             # 尝试处理响应，捕获可能的响应处理异常
             try:
@@ -505,6 +507,8 @@ class OpenAIChatService:
                 )
                 is_success = True
                 status_code = 200
+                # 更新贝叶斯成功统计
+                await self.key_manager.update_key_success(final_api_key)
                 break
 
             except Exception as e:
@@ -631,6 +635,8 @@ class OpenAIChatService:
             )
             is_success = True
             status_code = 200
+            # 更新贝叶斯成功统计
+            await self.key_manager.update_key_success(api_key)
             yield "data: [DONE]\n\n"
         except Exception as e:
             is_success = False
@@ -681,6 +687,8 @@ class OpenAIChatService:
             )
             is_success = True
             status_code = 200
+            # 更新贝叶斯成功统计
+            await self.key_manager.update_key_success(api_key)
             return result
         except Exception as e:
             is_success = False

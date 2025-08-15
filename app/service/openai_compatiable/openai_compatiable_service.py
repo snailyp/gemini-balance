@@ -75,6 +75,9 @@ class OpenAICompatiableService:
             response = await self.api_client.generate_content(request, api_key)
             is_success = True
             status_code = 200
+            # 更新贝叶斯成功统计
+            if self.key_manager:
+                await self.key_manager.update_key_success(api_key)
             return response
         except Exception as e:
             is_success = False
@@ -132,6 +135,9 @@ class OpenAICompatiableService:
                 logger.info("Streaming completed successfully")
                 is_success = True
                 status_code = 200
+                # 更新贝叶斯成功统计
+                if self.key_manager:
+                    await self.key_manager.update_key_success(final_api_key)
                 break
             except Exception as e:
                 retries += 1
