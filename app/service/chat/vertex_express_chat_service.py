@@ -254,6 +254,8 @@ class GeminiChatService:
             response = await self.api_client.generate_content(payload, model, api_key)
             is_success = True
             status_code = 200
+            # 更新贝叶斯成功统计
+            await self.key_manager.update_vertex_key_success(api_key)
             return self.response_handler.handle_response(response, model, stream=False)
         except Exception as e:
             is_success = False
@@ -330,6 +332,8 @@ class GeminiChatService:
                 logger.info("Streaming completed successfully")
                 is_success = True
                 status_code = 200
+                # 更新贝叶斯成功统计
+                await self.key_manager.update_vertex_key_success(final_api_key)
                 break
             except Exception as e:
                 retries += 1
