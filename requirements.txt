@@ -18,3 +18,5 @@ databases
 python-dotenv
 apscheduler
 packaging
+asyncpg
+psycopg2-binary

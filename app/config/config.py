@@ -29,7 +29,7 @@ from app.log.logger import Logger
 
 class Settings(BaseSettings):
     # 数据库配置
-    DATABASE_TYPE: str = "mysql"  # sqlite 或 mysql
+    DATABASE_TYPE: str = "mysql"  # sqlite, mysql, 或 pgsql
     SQLITE_DATABASE: str = "default_db"
     MYSQL_HOST: str = ""
     MYSQL_PORT: int = 3306
@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     MYSQL_PASSWORD: str = ""
     MYSQL_DATABASE: str = ""
     MYSQL_SOCKET: str = ""
+    PGSQL_HOST: str = ""
+    PGSQL_PORT: int = 5432
+    PGSQL_USER: str = ""
+    PGSQL_PASSWORD: str = ""
+    PGSQL_DATABASE: str = ""
 
     # 验证 MySQL 配置
     @field_validator(
@@ -47,6 +52,18 @@ class Settings(BaseSettings):
             if v is None or v == "":
                 raise ValueError(
                     "MySQL configuration is required when DATABASE_TYPE is 'mysql'"
+                )
+        return v
+
+    # 验证 PostgreSQL 配置
+    @field_validator(
+        "PGSQL_HOST", "PGSQL_PORT", "PGSQL_USER", "PGSQL_PASSWORD", "PGSQL_DATABASE"
+    )
+    def validate_pgsql_config(cls, v: Any, info: ValidationInfo) -> Any:
+        if info.data.get("DATABASE_TYPE") == "pgsql":
+            if v is None or v == "":
+                raise ValueError(
+                    "PostgreSQL configuration is required when DATABASE_TYPE is 'pgsql'"
                 )
         return v
 
@@ -389,8 +406,6 @@ async def sync_initial_settings():
         final_memory_settings = settings.model_dump()
         settings_to_update: List[Dict[str, Any]] = []
         settings_to_insert: List[Dict[str, Any]] = []
-        now = datetime.datetime.now(datetime.timezone.utc)
-
         existing_db_keys = set(db_settings_map.keys())
 
         for key, value in final_memory_settings.items():
@@ -417,8 +432,14 @@ async def sync_initial_settings():
                 "key": key,
                 "value": db_value,
                 "description": f"{key} configuration setting",
-                "updated_at": now,
             }
+
+            # 仅当数据库类型为 sqlite 时，才手动设置时间戳以保证兼容性
+            if settings.DATABASE_TYPE == "sqlite":
+                now = datetime.datetime.now(datetime.timezone.utc)
+                data["updated_at"] = now
+                if key not in existing_db_keys:
+                    data["created_at"] = now
 
             if key in existing_db_keys:
                 # 仅当值与数据库中的不同时才更新
@@ -426,7 +447,6 @@ async def sync_initial_settings():
                     settings_to_update.append(data)
             else:
                 # 如果键不在数据库中，则插入
-                data["created_at"] = now
                 settings_to_insert.append(data)
 
         # 在事务中执行批量插入和更新
