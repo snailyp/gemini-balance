@@ -389,7 +389,7 @@ class ImageUploaderFactory:
                 credentials["secret_key"]
             )
         elif provider == "picgo":
-            api_url = credentials.get("api_url", "https://www.picgo.net/api/1/upload")
+            api_url = credentials.get("api_url") or "https://www.picgo.net/api/1/upload"
             return PicGoUploader(credentials["api_key"], api_url)
         elif provider == "cloudflare_imgbed":
             return CloudFlareImgBedUploader(

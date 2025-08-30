@@ -259,7 +259,9 @@ def _extract_image_data(part: dict) -> str:
         )
     elif settings.UPLOAD_PROVIDER == "picgo":
         image_uploader = ImageUploaderFactory.create(
-            provider=settings.UPLOAD_PROVIDER, api_key=settings.PICGO_API_KEY
+            provider=settings.UPLOAD_PROVIDER, 
+            api_key=settings.PICGO_API_KEY,
+            api_url=settings.PICGO_API_URL
         )
     elif settings.UPLOAD_PROVIDER == "cloudflare_imgbed":
         image_uploader = ImageUploaderFactory.create(
