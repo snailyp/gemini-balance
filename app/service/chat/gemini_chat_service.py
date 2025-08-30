@@ -470,6 +470,7 @@ class GeminiChatService:
         is_success = False
         status_code = None
         final_api_key = api_key
+        last_error_msg = None
 
         while retries < max_retries:
             request_datetime = datetime.datetime.now()
@@ -509,6 +510,7 @@ class GeminiChatService:
                 retries += 1
                 is_success = False
                 error_log_msg = str(e)
+                last_error_msg = error_log_msg
                 logger.warning(
                     f"Streaming API call failed with error: {error_log_msg}. Attempt {retries} of {max_retries}"
                 )
@@ -553,3 +555,26 @@ class GeminiChatService:
                     latency_ms=latency_ms,
                     request_time=request_datetime,
                 )
+
+        # Emit final error SSE event if all retries failed
+        if not is_success:
+            # 从错误消息中提取嵌套JSON
+            parsed_error = None
+            if last_error_msg:
+                try:
+                    # 查找JSON起始位置
+                    json_start = last_error_msg.find('{')
+                    if json_start != -1:
+                        json_str = last_error_msg[json_start:]
+                        parsed_error = json.loads(json_str)
+                except json.JSONDecodeError:
+                    pass
+
+            error_data = {
+                "error": {
+                    "code": parsed_error['error']['code'] if (parsed_error and 'error' in parsed_error and 'code' in parsed_error['error']) else (status_code or 500),
+                    "message": parsed_error['error']['message'] if (parsed_error and 'error' in parsed_error and 'message' in parsed_error['error']) else (last_error_msg or "Streaming failed"),
+                    "status": parsed_error['error']['status'] if (parsed_error and 'error' in parsed_error and 'status' in parsed_error['error']) else "INTERNAL"
+                }
+            }
+            yield json.dumps(error_data, ensure_ascii=False)
