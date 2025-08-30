@@ -37,3 +37,12 @@ services:
       timeout: 5s   # 每次检查的超时时间为5秒
       retries: 3    # 重试3次失败后标记为 unhealthy
       start_period: 30s # 容器启动后等待30秒再开始第一次健康检查
+  adminer:
+    image: adminer:latest
+    container_name: gemini-balance-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
