@@ -189,3 +189,23 @@ def get_current_version(default_version: str = "0.0.0") -> str:
     except IOError as e:
         helper_logger.error(f"Error reading VERSION file ('{version_file}'): {e}. Using default version '{default_version}'.")
         return default_version
+
+
+def is_image_upload_configured() -> bool:
+    """Return True only if a valid upload provider is selected and all required settings for that provider are present. Uses lazy import to avoid circular imports."""
+    try:
+        from app.config.config import settings  # local import to avoid circular dependency at module import time
+    except Exception:
+        return False
+
+    provider = (getattr(settings, "UPLOAD_PROVIDER", "") or "").strip().lower()
+    if provider == "smms":
+        return bool(getattr(settings, "SMMS_SECRET_TOKEN", ""))
+    if provider == "picgo":
+        return bool(getattr(settings, "PICGO_API_KEY", ""))
+    if provider == "cloudflare_imgbed":
+        return all([
+            getattr(settings, "CLOUDFLARE_IMGBED_URL", ""),
+            getattr(settings, "CLOUDFLARE_IMGBED_AUTH_CODE", ""),
+        ])
+    return False

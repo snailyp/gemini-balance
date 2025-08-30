@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from app.config.config import settings
 from app.utils.uploader import ImageUploaderFactory
 from app.log.logger import get_openai_logger
+from app.utils.helpers import is_image_upload_configured
 
 logger = get_openai_logger()
 
@@ -251,7 +252,22 @@ def _extract_result(
     return text, reasoning_content, tool_calls, thought
 
 
+def _has_inline_image_part(response: Dict[str, Any]) -> bool:
+    try:
+        for c in response.get("candidates", []):
+            for p in c.get("content", {}).get("parts", []):
+                if isinstance(p, dict) and ("inlineData" in p):
+                    return True
+    except Exception:
+        return False
+    return False
+
+
 def _extract_image_data(part: dict) -> str:
+    # Return empty string if no uploader is configured
+    if not is_image_upload_configured():
+        return ""
+    
     image_uploader = None
     if settings.UPLOAD_PROVIDER == "smms":
         image_uploader = ImageUploaderFactory.create(
@@ -322,6 +338,10 @@ def _extract_tool_calls(
 def _handle_gemini_stream_response(
     response: Dict[str, Any], model: str, stream: bool
 ) -> Dict[str, Any]:
+    # Early return raw Gemini response if no uploader configured and contains inline images
+    if not is_image_upload_configured() and _has_inline_image_part(response):
+        return response
+    
     text, reasoning_content, tool_calls, thought = _extract_result(
         response, model, stream=stream, gemini_format=True
     )
@@ -339,6 +359,10 @@ def _handle_gemini_stream_response(
 def _handle_gemini_normal_response(
     response: Dict[str, Any], model: str, stream: bool
 ) -> Dict[str, Any]:
+    # Early return raw Gemini response if no uploader configured and contains inline images
+    if not is_image_upload_configured() and _has_inline_image_part(response):
+        return response
+    
     text, reasoning_content, tool_calls, thought = _extract_result(
         response, model, stream=stream, gemini_format=True
     )
