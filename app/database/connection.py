@@ -24,8 +24,10 @@ elif settings.DATABASE_TYPE == "mysql":
         DATABASE_URL = f"mysql+pymysql://{settings.MYSQL_USER}:{quote_plus(settings.MYSQL_PASSWORD)}@/{settings.MYSQL_DATABASE}?unix_socket={settings.MYSQL_SOCKET}"
     else:
         DATABASE_URL = f"mysql+pymysql://{settings.MYSQL_USER}:{quote_plus(settings.MYSQL_PASSWORD)}@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
+elif settings.DATABASE_TYPE == "pgsql":
+    DATABASE_URL = f"postgresql+psycopg2://{settings.PGSQL_USER}:{quote_plus(settings.PGSQL_PASSWORD)}@{settings.PGSQL_HOST}:{settings.PGSQL_PORT}/{settings.PGSQL_DATABASE}"
 else:
-    raise ValueError("Unsupported database type. Please set DATABASE_TYPE to 'sqlite' or 'mysql'.")
+    raise ValueError("Unsupported database type. Please set DATABASE_TYPE to 'sqlite', 'mysql', or 'pgsql'.")
 
 # 创建数据库引擎
 # pool_pre_ping=True: 在从连接池获取连接前执行简单的 "ping" 测试，确保连接有效
@@ -46,7 +48,10 @@ Base = declarative_base(metadata=metadata)
 if settings.DATABASE_TYPE == "sqlite":
     database = Database(DATABASE_URL)
 else:
-    database = Database(DATABASE_URL, min_size=5, max_size=20, pool_recycle=1800)
+    if settings.DATABASE_TYPE == "mysql":
+        database = Database(DATABASE_URL, min_size=5, max_size=20, pool_recycle=1800)
+    if settings.DATABASE_TYPE == "pgsql":
+        database = Database(DATABASE_URL, min_size=5, max_size=20)
 
 async def connect_to_db():
     """
@@ -58,7 +63,6 @@ async def connect_to_db():
     except Exception as e:
         logger.error(f"Failed to connect to database: {str(e)}")
         raise
-
 
 async def disconnect_from_db():
     """
