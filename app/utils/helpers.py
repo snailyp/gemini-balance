@@ -211,6 +211,16 @@ def is_image_upload_configured(settings: Settings) -> bool:
         return bool(getattr(settings, "SMMS_SECRET_TOKEN", ""))
     if provider == "picgo":
         return bool(getattr(settings, "PICGO_API_KEY", ""))
+    if provider == "aliyun_oss":
+        return all(
+            [
+                getattr(settings, "OSS_ACCESS_KEY", ""),
+                getattr(settings, "OSS_ACCESS_KEY_SECRET", ""),
+                getattr(settings, "OSS_BUCKET_NAME", ""),
+                getattr(settings, "OSS_ENDPOINT", ""),
+                getattr(settings, "OSS_REGION", "")
+            ]
+        )
     if provider == "cloudflare_imgbed":
         return all(
             [

@@ -2,6 +2,12 @@ import requests
 from app.domain.image_models import ImageMetadata, ImageUploader, UploadResponse
 from enum import Enum
 from typing import Optional, Any
+import hashlib
+import base64
+import hmac
+from datetime import datetime
+from urllib.parse import quote
+from app.log.logger import get_image_create_logger
 
 class UploadErrorType(Enum):
     """上传错误类型枚举"""
@@ -300,6 +306,191 @@ class PicGoUploader(ImageUploader):
             )
 
 
+class AliyunOSSUploader(ImageUploader):
+    """阿里云OSS图片上传器"""
+    
+    def __init__(self, access_key: str, access_key_secret: str, bucket_name: str, 
+                 endpoint: str, region: str, use_internal: bool = False):
+        """
+        初始化阿里云OSS上传器
+        
+        Args:
+            access_key: OSS访问密钥ID
+            access_key_secret: OSS访问密钥
+            bucket_name: OSS存储桶名称
+            endpoint: OSS端点地址
+            region: OSS区域
+            use_internal: 是否使用内网端点
+        """
+        self.access_key = access_key
+        self.access_key_secret = access_key_secret
+        self.bucket_name = bucket_name
+        self.endpoint = endpoint
+        self.region = region
+        self.use_internal = use_internal
+        self.logger = get_image_create_logger()
+        
+        # 构建请求URL
+        if not endpoint.startswith(('http://', 'https://')):
+            self.base_url = f"https://{bucket_name}.{endpoint}"
+        else:
+            self.base_url = f"{endpoint}/{bucket_name}"
+            
+        self.logger.info(f"Initialized AliyunOSSUploader for bucket: {bucket_name}, region: {region}")
+    
+    def _sign_request(self, method: str, path: str, headers: dict, content: bytes = b'') -> dict:
+        """
+        为OSS请求生成签名
+        
+        Args:
+            method: HTTP方法
+            path: 请求路径
+            headers: 请求头
+            content: 请求内容
+            
+        Returns:
+            包含签名的请求头
+        """
+        # 计算Content-MD5
+        content_md5 = base64.b64encode(hashlib.md5(content).digest()).decode('utf-8') if content else ''
+        
+        # 设置日期
+        date = datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
+        
+        # 更新headers
+        headers['Date'] = date
+        if content_md5:
+            headers['Content-MD5'] = content_md5
+        headers['Content-Type'] = headers.get('Content-Type', 'image/png')
+        
+        # 构建CanonicalizedOSSHeaders
+        oss_headers = []
+        for key, value in sorted(headers.items()):
+            if key.lower().startswith('x-oss-'):
+                oss_headers.append(f"{key.lower()}:{value}")
+        canonicalized_oss_headers = '\n'.join(oss_headers)
+        if canonicalized_oss_headers:
+            canonicalized_oss_headers += '\n'
+        
+        # 构建CanonicalizedResource
+        canonicalized_resource = f"/{self.bucket_name}{path}"
+        
+        # 构建StringToSign
+        string_to_sign = f"{method}\n{content_md5}\n{headers.get('Content-Type', '')}\n{date}\n{canonicalized_oss_headers}{canonicalized_resource}"
+        
+        # 计算签名
+        signature = base64.b64encode(
+            hmac.new(
+                self.access_key_secret.encode('utf-8'),
+                string_to_sign.encode('utf-8'),
+                hashlib.sha1
+            ).digest()
+        ).decode('utf-8')
+        
+        # 添加Authorization头
+        headers['Authorization'] = f"OSS {self.access_key}:{signature}"
+        
+        return headers
+    
+    def upload(self, file: bytes, filename: str) -> UploadResponse:
+        """
+        上传图片到阿里云OSS
+        
+        Args:
+            file: 图片文件二进制数据
+            filename: 文件名（将作为OSS对象的key）
+            
+        Returns:
+            UploadResponse: 上传响应对象
+            
+        Raises:
+            UploadError: 上传失败时抛出异常
+        """
+        # 记录开始上传的日志
+        self.logger.info(f"Starting OSS upload for file: {filename}, size: {len(file)} bytes")
+        
+        try:
+            # 构建对象路径
+            object_key = f"/{filename}"
+            
+            # 准备请求头
+            headers = {
+                'Content-Type': 'image/png',
+                'x-oss-object-acl': 'public-read'  # 设置为公共读
+            }
+            
+            # 签名请求
+            signed_headers = self._sign_request('PUT', object_key, headers, file)
+            
+            # 构建完整URL
+            upload_url = f"{self.base_url}{object_key}"
+            self.logger.debug(f"OSS upload URL: {upload_url}")
+            
+            # 发送请求
+            response = requests.put(
+                upload_url,
+                data=file,
+                headers=signed_headers
+            )
+            
+            # 检查响应状态
+            if response.status_code != 200:
+                error_msg = f"OSS upload failed with status {response.status_code}, response: {response.text}"
+                self.logger.error(f"OSS upload failed for {filename}: {error_msg}")
+                raise UploadError(
+                    message=f"OSS upload failed with status {response.status_code}",
+                    error_type=UploadErrorType.SERVER_ERROR,
+                    status_code=response.status_code,
+                    details={'response': response.text}
+                )
+            
+            # 构建访问URL
+            if self.endpoint.startswith(('http://', 'https://')):
+                access_url = f"{self.endpoint}/{self.bucket_name}{object_key}"
+            else:
+                access_url = f"https://{self.bucket_name}.{self.endpoint}{object_key}"
+            
+            # 构建图片元数据
+            image_metadata = ImageMetadata(
+                width=0,  # OSS PUT不返回图片尺寸
+                height=0,
+                filename=filename,
+                size=len(file),
+                url=access_url,
+                delete_url=None  # OSS需要单独的删除操作
+            )
+            
+            # 记录上传成功的日志
+            self.logger.info(f"OSS upload successful for {filename}, URL: {access_url}")
+            
+            return UploadResponse(
+                success=True,
+                code="success",
+                message="Upload to Aliyun OSS success",
+                data=image_metadata
+            )
+            
+        except requests.RequestException as e:
+            error_msg = f"OSS upload request failed: {str(e)}"
+            self.logger.error(f"OSS upload request failed for {filename}: {error_msg}")
+            raise UploadError(
+                message=error_msg,
+                error_type=UploadErrorType.NETWORK_ERROR,
+                original_error=e
+            )
+        except UploadError:
+            # UploadError 已经被记录了，直接重新抛出
+            raise
+        except Exception as e:
+            error_msg = f"OSS upload failed: {str(e)}"
+            self.logger.error(f"OSS upload unexpected error for {filename}: {error_msg}")
+            raise UploadError(
+                message=error_msg,
+                error_type=UploadErrorType.UNKNOWN,
+                original_error=e
+            )
+
+
 class CloudFlareImgBedUploader(ImageUploader):
     """CloudFlare图床上传器"""
 
@@ -437,5 +628,14 @@ class ImageUploaderFactory:
                 credentials["auth_code"],
                 credentials["base_url"],
                 credentials.get("upload_folder", ""),
+            )
+        elif provider == "aliyun_oss":
+            return AliyunOSSUploader(
+                credentials["access_key"],
+                credentials["access_key_secret"],
+                credentials["bucket_name"],
+                credentials["endpoint"],
+                credentials["region"],
+                credentials.get("use_internal", False)
             )
         raise ValueError(f"Unknown provider: {provider}")

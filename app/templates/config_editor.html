@@ -1814,6 +1814,7 @@ endblock %} {% block head_extra_styles %}
             <option value="smms" selected>SM.MS</option>
             <option value="picgo">PicGo</option>
             <option value="cloudflare_imgbed">Cloudflare</option>
+            <option value="aliyun_oss">阿里云OSS</option>
           </select>
           <small class="text-gray-500 mt-1 block">图片上传服务提供商</small>
         </div>
@@ -1920,6 +1921,109 @@ endblock %} {% block head_extra_styles %}
           <small class="text-gray-500 mt-1 block"
             >Cloudflare图床的上传文件夹路径（可选）</small
           >
+        </div>
+
+        <!-- 阿里云OSS配置 -->
+        <!-- OSS Endpoint -->
+        <div class="mb-6 provider-config" data-provider="aliyun_oss">
+          <label
+            for="OSS_ENDPOINT"
+            class="block font-semibold mb-2 text-gray-700"
+            >OSS Endpoint</label
+          >
+          <input
+            type="text"
+            id="OSS_ENDPOINT"
+            name="OSS_ENDPOINT"
+            placeholder="oss-cn-shanghai.aliyuncs.com"
+            class="w-full px-4 py-3 rounded-lg form-input-themed"
+          />
+          <small class="text-gray-500 mt-1 block">阿里云OSS的Endpoint地址</small>
+        </div>
+
+        <!-- OSS Access Key -->
+        <div class="mb-6 provider-config" data-provider="aliyun_oss">
+          <label
+            for="OSS_ACCESS_KEY"
+            class="block font-semibold mb-2 text-gray-700"
+            >OSS Access Key</label
+          >
+          <input
+            type="text"
+            id="OSS_ACCESS_KEY"
+            name="OSS_ACCESS_KEY"
+            placeholder="LTAI5txxxxxxxxxx"
+            class="w-full px-4 py-3 rounded-lg sensitive-input form-input-themed"
+          />
+          <small class="text-gray-500 mt-1 block">阿里云OSS的Access Key ID</small>
+        </div>
+
+        <!-- OSS Access Key Secret -->
+        <div class="mb-6 provider-config" data-provider="aliyun_oss">
+          <label
+            for="OSS_ACCESS_KEY_SECRET"
+            class="block font-semibold mb-2 text-gray-700"
+            >OSS Access Key Secret</label
+          >
+          <input
+            type="password"
+            id="OSS_ACCESS_KEY_SECRET"
+            name="OSS_ACCESS_KEY_SECRET"
+            placeholder="yXxxxxxxxxxxxx"
+            class="w-full px-4 py-3 rounded-lg sensitive-input form-input-themed"
+          />
+          <small class="text-gray-500 mt-1 block">阿里云OSS的Access Key Secret</small>
+        </div>
+
+        <!-- OSS Bucket Name -->
+        <div class="mb-6 provider-config" data-provider="aliyun_oss">
+          <label
+            for="OSS_BUCKET_NAME"
+            class="block font-semibold mb-2 text-gray-700"
+            >OSS Bucket名称</label
+          >
+          <input
+            type="text"
+            id="OSS_BUCKET_NAME"
+            name="OSS_BUCKET_NAME"
+            placeholder="your-bucket-name"
+            class="w-full px-4 py-3 rounded-lg form-input-themed"
+          />
+          <small class="text-gray-500 mt-1 block">阿里云OSS的Bucket名称</small>
+        </div>
+
+        <!-- OSS Region -->
+        <div class="mb-6 provider-config" data-provider="aliyun_oss">
+          <label
+            for="OSS_REGION"
+            class="block font-semibold mb-2 text-gray-700"
+            >OSS Region</label
+          >
+          <input
+            type="text"
+            id="OSS_REGION"
+            name="OSS_REGION"
+            placeholder="cn-shanghai"
+            class="w-full px-4 py-3 rounded-lg form-input-themed"
+          />
+          <small class="text-gray-500 mt-1 block">阿里云OSS的Region区域</small>
+        </div>
+
+        <!-- OSS Internal Endpoint (可选) -->
+        <div class="mb-6 provider-config" data-provider="aliyun_oss">
+          <label
+            for="OSS_ENDPOINT_INNER"
+            class="block font-semibold mb-2 text-gray-700"
+            >OSS内网Endpoint（可选）</label
+          >
+          <input
+            type="text"
+            id="OSS_ENDPOINT_INNER"
+            name="OSS_ENDPOINT_INNER"
+            placeholder="oss-cn-shanghai-internal.aliyuncs.com"
+            class="w-full px-4 py-3 rounded-lg form-input-themed"
+          />
+          <small class="text-gray-500 mt-1 block">阿里云OSS的内网Endpoint地址（可选）</small>
         </div>
       </div>
 

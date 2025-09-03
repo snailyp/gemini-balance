@@ -98,6 +98,13 @@ class Settings(BaseSettings):
     CLOUDFLARE_IMGBED_URL: str = ""
     CLOUDFLARE_IMGBED_AUTH_CODE: str = ""
     CLOUDFLARE_IMGBED_UPLOAD_FOLDER: str = ""
+    # 阿里云OSS配置
+    OSS_ENDPOINT: str = ""
+    OSS_ENDPOINT_INNER: str = ""
+    OSS_ACCESS_KEY: str = ""
+    OSS_ACCESS_KEY_SECRET: str = ""
+    OSS_BUCKET_NAME: str = ""
+    OSS_REGION: str = ""
 
     # 流式输出优化器配置
     STREAM_OPTIMIZER_ENABLED: bool = False

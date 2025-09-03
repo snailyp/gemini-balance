@@ -131,6 +131,16 @@ class ImageCreateService:
                             auth_code=settings.CLOUDFLARE_IMGBED_AUTH_CODE,
                             upload_folder=settings.CLOUDFLARE_IMGBED_UPLOAD_FOLDER,
                         )
+                    elif settings.UPLOAD_PROVIDER == "aliyun_oss":
+                        image_uploader = ImageUploaderFactory.create(
+                            provider=settings.UPLOAD_PROVIDER,
+                            access_key=settings.OSS_ACCESS_KEY,
+                            access_key_secret=settings.OSS_ACCESS_KEY_SECRET,
+                            bucket_name=settings.OSS_BUCKET_NAME,
+                            endpoint=settings.OSS_ENDPOINT,
+                            region=settings.OSS_REGION,
+                            use_internal=False
+                        )
                     else:
                         raise ValueError(
                             f"Unsupported upload provider: {settings.UPLOAD_PROVIDER}"
